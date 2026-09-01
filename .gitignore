@@ -179,3 +179,19 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Database local (nếu SQLite dùng để test)
+*.db
+*.sqlite3
+
+# File cấu hình chứa thông tin nhạy cảm
+.env
+*.env
+
+# Model đã train (thường khá nặng, không cần commit)
+*.pkl
+*.joblib
+models/*.onnx
+
+# Streamlit
+.streamlit/secrets.toml
