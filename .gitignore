@@ -195,3 +195,5 @@ models/*.onnx
 
 # Streamlit
 .streamlit/secrets.toml
+# Mockup giao diện xuất từ Claude Design (chỉ dùng tham chiếu cục bộ)
+docs/mockups/
