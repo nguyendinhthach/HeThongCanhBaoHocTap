@@ -29,12 +29,60 @@ cơ trượt môn, bị cảnh báo học vụ hoặc thôi học — dựa trê
 
 ## Trạng thái hiện tại
 
-🚧 Dự án mới bắt đầu, đang trong giai đoạn thiết lập ban đầu — chưa có kết
-quả demo hay dữ liệu huấn luyện.
+🚧 Đang ở giai đoạn dựng giao diện. Đã có bản chạy được với 4 màn hình:
+Đăng nhập/Đăng ký, Dashboard, Thêm/cập nhật môn học, Cảnh báo & Mục tiêu.
 
-## Cài đặt (đang cập nhật)
+Toàn bộ số liệu hiện là **dữ liệu tĩnh** trong `ui/data.py` — chưa có phần
+tính toán nghiệp vụ, chưa nối cơ sở dữ liệu và chưa gắn mô hình học máy.
+Phần điều hướng, chuyển tab, chọn thang điểm và chọn mục tiêu thì hoạt động
+thật.
+
+Quy tắc nghiệp vụ dự kiến được mô tả trong [docs/SPEC.md](docs/SPEC.md).
+
+## Cài đặt và chạy
+
+Yêu cầu: **Python 3.9 trở lên** (nhóm đang dùng 3.14).
 
 ```bash
-# hướng dẫn cài đặt sẽ được bổ sung khi có bản chạy đầu tiên
+# 1. Tải mã nguồn
+git clone https://github.com/nguyendinhthach/HeThongCanhBaoHocTap.git
+cd HeThongCanhBaoHocTap
+
+# 2. (Khuyến nghị) Tạo môi trường ảo riêng cho dự án
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS / Linux
+
+# 3. Cài thư viện
+python -m pip install -r requirements.txt
+
+# 4. Chạy ứng dụng
+python -m streamlit run app.py
+```
+
+Trình duyệt sẽ tự mở tại <http://localhost:8501>. Nhấn `Ctrl+C` trong
+terminal để dừng.
+
+> **Lưu ý:** dùng `python -m streamlit run app.py`, không phải
+> `streamlit run app.py`. Nếu thư mục `Scripts` của Python không nằm trong
+> biến môi trường PATH, gõ trực tiếp `streamlit` sẽ báo lỗi *command not
+> found*.
+
+Muốn đổi cổng: `python -m streamlit run app.py --server.port 8600`
+
+## Cấu trúc thư mục
+
+```
+app.py                điểm vào ứng dụng, sidebar và điều hướng
+requirements.txt      thư viện cần cài
+.streamlit/           cấu hình giao diện Streamlit
+docs/SPEC.md          đặc tả quy tắc nghiệp vụ
+docs/mockups/         bản thiết kế gốc (không đưa lên git)
+ui/
+  tokens.py           màu và kích thước lấy từ mockup
+  styles.py           CSS toàn cục cho widget Streamlit
+  blocks.py           khối HTML dùng chung (thẻ chỉ số, bảng, nhãn)
+  data.py             dữ liệu hiển thị tĩnh
+  screens/            bốn màn hình của ứng dụng
 ```
 
