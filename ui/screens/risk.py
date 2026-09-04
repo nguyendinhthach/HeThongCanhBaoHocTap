@@ -4,6 +4,7 @@ import streamlit as st
 
 from ui import blocks as b
 from ui import data as d
+from ui import rules
 from ui import tokens as t
 
 _CSS = f"""
@@ -18,6 +19,12 @@ _CSS = f"""
     font-weight: 400 !important;
     padding: 11px 14px !important;
     text-align: left !important;
+    justify-content: flex-start !important;
+  }}
+  /* Cùng lý do như nút điều hướng: div bọc nhãn mới là chỗ căn giữa. */
+  [class*="st-key-goal_"] .stButton button[kind="secondary"] > div {{
+    justify-content: flex-start !important;
+    width: 100% !important;
   }}
   [class*="st-key-goal_"] .stButton button[kind="secondary"] p {{
     width: 100%;
@@ -133,6 +140,8 @@ def render() -> None:
 
         with ket_qua:
             g = d.GOALS[khoa]
+            # Màu theo % khả năng đạt, không gán cứng cho từng mục tiêu.
+            mau = rules.goal_color(g["pct"])
             st.markdown(
                 f'<div style="padding:20px;border-radius:{t.RADIUS_CARD}px;'
                 f'background:{t.PANEL_BG};border:1px solid {t.BORDER};'
@@ -140,11 +149,11 @@ def render() -> None:
                 f'<div style="font-size:14px;color:{t.MUTED}">Khả năng đạt '
                 f'mục tiêu <span class="mk-strong">{khoa}</span></div>'
                 f'<div style="display:flex;align-items:flex-end;gap:10px">'
-                f'<div class="mk-bignum-sm" style="color:{g["color"]}">'
+                f'<div class="mk-bignum-sm" style="color:{mau}">'
                 f'{g["pct"]}%</div>'
                 f'<div style="font-size:14px;color:{t.MUTED};'
                 f'padding-bottom:6px">nếu giữ nhịp học hiện tại</div></div>'
-                f'{b.bar(g["pct"], g["color"])}'
+                f'{b.bar(g["pct"], mau)}'
                 f'<div style="font-size:14px;color:{t.TEXT};line-height:1.5">'
                 f'{g["note"]}</div></div>',
                 unsafe_allow_html=True,

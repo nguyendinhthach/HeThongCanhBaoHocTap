@@ -1,14 +1,43 @@
-"""Dữ liệu hiển thị tĩnh, chép từ mockup đã render.
+"""Dữ liệu mẫu và cấu hình hiển thị.
 
-Giai đoạn này chỉ dựng giao diện nên mọi con số đều là giá trị cố định — chưa
-có tính toán hay mô hình. Khi gắn nghiệp vụ, thay module này bằng lớp truy vấn
-và tầng tính điểm.
+Môn học là mô hình thật, không phải ảnh chụp kết quả: mỗi môn gắn năm–kỳ và
+giữ nguyên danh sách điểm thành phần, còn điểm tổng kết do ui/rules.py tính.
+Nhờ vậy đổi kỳ, sửa, xoá đều chạy được mà không phải sửa chỗ hiển thị.
+
+Danh sách môn sống trong st.session_state (xem seed_courses) chứ không để ở
+cấp module: mọi phiên trình duyệt phải có bản riêng, nếu không hai tab sẽ
+giẫm lên nhau.
+
+Các con số ở phần "Cảnh báo & Mục tiêu" vẫn là giá trị cố định — phần đó chờ
+mô hình dự đoán.
 """
 
+from ui import rules
 from ui import tokens as t
 
 YEARS = ["2023–2024", "2024–2025", "2025–2026", "2026–2027"]
 SEMESTERS = ["Học kỳ 1", "Học kỳ 2", "Học kỳ 3"]
+
+
+def semesters(so_ky: int) -> list[str]:
+    """Học kỳ của một năm học.
+
+    Học kỳ không phải thứ người dùng tạo ra: mọi năm đều có như nhau, số
+    lượng lấy từ "Số học kỳ mỗi năm" chọn lúc đăng ký. Nhờ vậy không tồn tại
+    cặp năm–kỳ không hợp lệ; kỳ chưa nhập môn chỉ là kỳ rỗng.
+    """
+    return SEMESTERS[:so_ky]
+
+
+def years(khoa_from, khoa_to) -> list[str]:
+    """Danh sách năm học suy từ niên khoá, dùng khi tạo tài khoản."""
+    try:
+        tu, den = int(khoa_from), int(khoa_to)
+    except (TypeError, ValueError):
+        return []
+    if den <= tu or den - tu > 8:
+        return []
+    return [f"{y}–{y + 1}" for y in range(tu, den)]
 
 SCREENS = {
     "dashboard": "Dashboard",
@@ -18,62 +47,90 @@ SCREENS = {
 
 USER = {"name": "Sinh viên", "initials": "SV", "khoa": "2023–2027"}
 
-# --- Dashboard -------------------------------------------------------------
-METRICS = [
-    {"label": "GPA học kỳ (thang 10)", "value": "6.26", "color": t.TEXT,
-     "delta": "↓ 0,42 so với học kỳ trước", "delta_color": t.DANGER},
-    {"label": "Tín chỉ đã đăng ký", "value": "13", "color": t.TEXT,
-     "delta": "5 môn đang học", "delta_color": t.MUTED},
-    {"label": "Môn dưới 5.0", "value": "1", "color": t.DANGER,
-     "delta": "Nguy cơ phải học lại", "delta_color": t.MUTED},
-    {"label": "Mức nguy cơ", "value": "Trung bình", "color": t.WARNING,
-     "delta": "46% bị cảnh báo học vụ", "delta_color": t.MUTED},
+# --- Môn học ---------------------------------------------------------------
+# Port nguyên SEED của mockup, thêm mã môn học. Mã mới là khoá nhận diện môn
+# (tên nhập tay không đáng tin), còn điểm thành phần dựng lại từ điểm mục tiêu
+# bằng rules.mk_rows thay vì lưu điểm tổng kết.
+_SEED = [
+    ("2024–2025", "Học kỳ 2", "20CT3101", "Công nghệ phần mềm", 3, 7.1,
+     "Học lần 1"),
+    ("2024–2025", "Học kỳ 2", "20CT2203", "Mạng máy tính", 3, 6.0,
+     "Học lần 1"),
+    ("2024–2025", "Học kỳ 2", "20TN1301", "Xác suất thống kê", 3, 4.8,
+     "Học lại"),
+    ("2024–2025", "Học kỳ 2", "20CT2301", "Lập trình web", 3, 8.4,
+     "Học lần 1"),
+    ("2025–2026", "Học kỳ 1", "20CT3201", "Trí tuệ nhân tạo", 3, 5.4,
+     "Học lần 1"),
+    ("2025–2026", "Học kỳ 1", "20CT3202", "Lập trình Python nâng cao", 3, 7.8,
+     "Học lần 1"),
+    ("2025–2026", "Học kỳ 1", "20CT3203", "Cơ sở dữ liệu phân tán", 3, 4.2,
+     "Học lại"),
+    ("2025–2026", "Học kỳ 1", "20CT3204", "Kiểm thử phần mềm", 2, 6.5,
+     "Học lần 1"),
+    ("2025–2026", "Học kỳ 1", "20CT2104", "Tiếng Anh chuyên ngành 2", 2, 8.1,
+     "Học cải thiện"),
+    ("2026–2027", "Học kỳ 1", "20CT4901", "Đồ án tốt nghiệp", 6, 7.5,
+     "Học lần 1"),
+    ("2026–2027", "Học kỳ 1", "20CT4201", "Học máy ứng dụng", 3, 6.2,
+     "Học lần 1"),
 ]
 
-# grade_color theo mockup: < 5 đỏ, < 6.5 cam, còn lại xanh
-COURSES = [
-    {"name": "Trí tuệ nhân tạo", "credits": 3, "grade": "5.4",
-     "grade_color": t.WARNING, "attempt": "Học lần 1", "warn": False},
-    {"name": "Lập trình Python nâng cao", "credits": 3, "grade": "7.8",
-     "grade_color": t.SUCCESS, "attempt": "Học lần 1", "warn": False},
-    {"name": "Cơ sở dữ liệu phân tán", "credits": 3, "grade": "4.2",
-     "grade_color": t.DANGER, "attempt": "Lần 2 · Học lại", "warn": True},
-    {"name": "Kiểm thử phần mềm", "credits": 2, "grade": "6.5",
-     "grade_color": t.SUCCESS, "attempt": "Học lần 1", "warn": False},
-    {"name": "Tiếng Anh chuyên ngành 2", "credits": 2, "grade": "8.1",
-     "grade_color": t.SUCCESS, "attempt": "Lần 2 · Học cải thiện",
-     "warn": False},
-]
 
-COURSE_FOOTNOTE = ('5 môn · 13 tín chỉ trong học kỳ này · môn ghi "tạm tính" '
-                   "là chưa nhập đủ 100% trọng số điểm thành phần")
+def seed_courses() -> list[dict]:
+    """Bản sao dữ liệu mẫu cho một phiên mới."""
+    return [
+        {"id": i + 1, "year": nam, "sem": ky, "code": ma, "name": ten,
+         "credits": tc, "attempt": loai,
+         "attempt_no": 1 if loai == "Học lần 1" else 2,
+         "rows": rules.mk_rows(diem)}
+        for i, (nam, ky, ma, ten, tc, diem, loai) in enumerate(_SEED)
+    ]
 
-# Chuỗi GPA từng học kỳ; điểm đang chọn ở sidebar được tô sáng.
-GPA_SERIES = [
-    {"ky": "24–25 HK2", "gpa": 6.58, "dang_xem": False},
-    {"ky": "25–26 HK1", "gpa": 6.26, "dang_xem": True},
-    {"ky": "26–27 HK1", "gpa": 7.07, "dang_xem": False},
-]
+
+def metrics(courses: list[dict], scale: int, tat_ca: list[dict],
+            nam: str, ky: str) -> list[dict]:
+    """Bốn thẻ chỉ số của kỳ đang xem; nhãn đổi theo thang điểm."""
+    tk = rules.tom_tat(courses)
+    delta, mau_delta = rules.so_sanh_ky_truoc(tat_ca, nam, ky, scale)
+    gpa = rules.gpa_thang(tk, scale)
+    if tk["tam_tinh"]:
+        no_delta = f'Chỉ tính {len(courses) - tk["tam_tinh"]} môn đã đủ điểm'
+    else:
+        no_delta = "Phải học lại" if tk["truot"] else "Không có môn nợ"
+    return [
+        {"label": f"GPA học kỳ (DH{scale})",
+         "value": f"{gpa:.2f}" if courses else "—",
+         "color": t.TEXT, "delta": delta, "delta_color": mau_delta},
+        {"label": "Tín chỉ đã đăng ký", "value": str(tk["tin_chi"]),
+         "color": t.TEXT, "delta": f"{len(courses)} môn đang học",
+         "delta_color": t.MUTED},
+        {"label": ("Môn điểm E (học lại)" if scale == 4
+                   else f"Môn dưới {t.GRADE_FAIL:.1f} (học lại)"),
+         "value": str(tk["truot"]),
+         "color": t.DANGER if tk["truot"] else t.SUCCESS,
+         "delta": no_delta, "delta_color": t.MUTED},
+        {"label": "Mức nguy cơ", "value": RISK_LABEL,
+         "color": t.RISK_STYLES[RISK_LABEL]["dot"],
+         "delta": f"{RISK_PCT}% bị cảnh báo học vụ", "delta_color": t.MUTED},
+    ]
+
+
+def course_footnote(courses: list[dict]) -> str:
+    tk = rules.tom_tat(courses)
+    return (f'{len(courses)} môn · {tk["tin_chi"]} tín chỉ trong học kỳ này · '
+            'môn ghi "tạm tính" là chưa nhập đủ 100% trọng số điểm thành phần')
+
 
 # --- Thêm / cập nhật môn học ----------------------------------------------
-FORM_ROWS = [
-    {"loai": "Chuyên cần", "trong_so": 10, "diem": 6.0},
-    {"loai": "Kiểm tra giữa kỳ", "trong_so": 30, "diem": 5.5},
-    {"loai": "Thi cuối kỳ", "trong_so": 60, "diem": None},
-]
+# Bộ dòng mặc định khi mở form thêm môn mới: đủ 100% trọng số, chưa có điểm.
+def form_rows_moi() -> list[dict]:
+    return [
+        {"loai": "Chuyên cần", "trong_so": 10, "diem": None},
+        {"loai": "Kiểm tra giữa kỳ", "trong_so": 30, "diem": None},
+        {"loai": "Thi cuối kỳ", "trong_so": 60, "diem": None},
+    ]
 
-WEIGHT_TOTAL = 100
-PROVISIONAL_TEXT = ("Điểm tạm tính (dựa trên 40% trọng số đã có điểm): 5.63 — "
-                    "còn 60% (Thi cuối kỳ 60%) chưa nhập")
-
-DUP_TEXT = ("Môn này đã học ở Học kỳ 1 (2025–2026) với điểm 4.2 (chưa đạt) — "
-            "đã gợi ý “Học lại”. → Tự động ghi nhận là Lần 3.")
-
-SEMESTER_COURSES = [
-    {"name": c["name"], "credits": c["credits"], "grade": c["grade"],
-     "attempt": c["attempt"]}
-    for c in COURSES
-]
 
 # --- Cảnh báo & Mục tiêu ---------------------------------------------------
 RISK_PCT = 46
@@ -100,17 +157,17 @@ TIPS = [
 
 GOALS = {
     "Đạt loại Giỏi": {
-        "pct": 24, "hint": "GPA ≥ 3.2", "color": t.WARNING,
+        "pct": 24, "hint": "GPA ≥ 3.2",
         "note": "Cần điểm trung bình từ 8.5 trở lên ở 3 môn còn lại — khá khó "
                 "với mức hiện tại.",
     },
     "Đạt loại Khá": {
-        "pct": 61, "hint": "GPA ≥ 2.5", "color": t.PRIMARY,
+        "pct": 61, "hint": "GPA ≥ 2.5",
         "note": "Khả thi nếu nâng điểm Trí tuệ nhân tạo lên ≥ 6.5 và giữ các "
                 "môn còn lại.",
     },
     "Qua môn (không nợ)": {
-        "pct": 88, "hint": "Không môn < 4.0", "color": t.SUCCESS,
+        "pct": 88, "hint": "Không môn < 4.0",
         "note": "Chỉ cần đạt ≥ 5.0 điểm thi cuối kỳ môn Cơ sở dữ liệu phân "
                 "tán.",
     },

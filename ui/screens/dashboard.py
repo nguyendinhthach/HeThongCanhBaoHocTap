@@ -6,10 +6,11 @@ import streamlit as st
 
 from ui import blocks as b
 from ui import data as d
+from ui import rules
 from ui import tokens as t
 
-# Nhóm chuyển thang: nền #f0f2f6, padding 3, mỗi nút 7px 14px, nút đang chọn
-# nền trắng kèm đổ bóng nhẹ — theo mockup.
+# Nhóm chuyển thang: nền #f0f2f6, padding 3, nút đang chọn nền trắng kèm đổ
+# bóng nhẹ — theo mockup. Nhãn rút còn DH10 / DH4 nên khung cũng bóp lại.
 _CSS = f"""
 <style>
   .st-key-scale_group {{
@@ -18,6 +19,11 @@ _CSS = f"""
     border-radius: {t.RADIUS_INPUT}px;
     padding: 3px !important;
     gap: 3px !important;
+    flex-wrap: nowrap !important;
+    /* fit-content chứ không phải auto: là flex item nên auto vẫn bị kéo giãn
+       theo chỗ trống của khung ngang, để thừa một khoảng trắng bên phải. */
+    flex: 0 0 fit-content !important;
+    width: fit-content !important;
   }}
   .st-key-scale_10 .stButton button[kind="secondary"],
   .st-key-scale_4 .stButton button[kind="secondary"] {{
@@ -25,7 +31,7 @@ _CSS = f"""
     background: transparent !important;
     box-shadow: none !important;
     border-radius: {t.RADIUS_SMALL}px !important;
-    padding: 7px 14px !important;
+    padding: 7px 12px !important;
     font-size: 14px !important;
     font-weight: 400 !important;
     color: {t.MUTED} !important;
@@ -44,17 +50,15 @@ _CSS = f"""
 """
 
 
-def _chart(scale: int) -> alt.LayerChart:
+def _chart(chuoi: list[dict], scale: int) -> alt.LayerChart:
     """Đường GPA theo học kỳ; điểm đang xem tô rỗng viền cam như mockup."""
-    df = pd.DataFrame(d.GPA_SERIES)
+    df = pd.DataFrame(chuoi)
     toi_da = 4 if scale == 4 else 10
-    if scale == 4:
-        df["gpa"] = (df["gpa"] / 10 * 4).round(2)
 
     x = alt.X("ky:N", sort=None, title=None,
               axis=alt.Axis(labelAngle=0, labelFontSize=13,
                             labelColor=t.MUTED, domain=False, ticks=False))
-    y = alt.Y("gpa:Q", title=f"GPA (thang {toi_da})",
+    y = alt.Y("gpa:Q", title=f"GPA (DH{toi_da})",
               scale=alt.Scale(domain=[0, toi_da], nice=False),
               axis=alt.Axis(values=list(range(0, toi_da + 1,
                                               1 if scale == 4 else 2)),
@@ -75,8 +79,10 @@ def _chart(scale: int) -> alt.LayerChart:
                  alt.Tooltip("gpa:Q", title="GPA")],
     )
     nhan = alt.Chart(df).mark_text(dy=-18, fontSize=13, fontWeight="bold",
-                                   color=t.TEXT, font="Source Code Pro").encode(
-        x, y, text=alt.Text("gpa:Q", format=".2f"))
+                                   color=t.TEXT,
+                                   font="Source Code Pro").encode(
+        x, y, text=alt.Text("gpa:Q",
+                            format=".1f" if scale == 4 else ".2f"))
 
     return (duong + diem + nhan).properties(height=260).configure_view(
         strokeWidth=0)
@@ -99,32 +105,36 @@ def render() -> None:
         with st.container(horizontal=True, horizontal_alignment="right",
                           vertical_alignment="center", gap="medium"):
             with st.container(horizontal=True, key="scale_group"):
-                if st.button("Thang 10", key="scale_10"):
+                if st.button("DH10", key="scale_10"):
                     st.session_state.scale = 10
                     st.rerun()
-                if st.button("Thang 4", key="scale_4"):
+                if st.button("DH4", key="scale_4"):
                     st.session_state.scale = 4
                     st.rerun()
             if st.button("+ Thêm môn học", key="btn_add"):
                 st.session_state.screen = "add"
                 st.rerun()
 
+    trong_ky = rules.loc_ky(st.session_state.courses,
+                            st.session_state.nam_hoc, st.session_state.hoc_ky)
+
     b.spacer(t.SHELL_GAP)
-    b.metrics(d.METRICS)
+    b.metrics(d.metrics(trong_ky, scale, st.session_state.courses,
+                        st.session_state.nam_hoc,
+                        st.session_state.hoc_ky))
     b.spacer(t.SHELL_GAP)
 
     # --- Bảng môn học -----------------------------------------------------
     b.section_title("Danh sách môn học")
     b.spacer(12)
-    b.course_table(d.COURSES)
+    b.course_table(trong_ky, scale)
     b.spacer(8)
-    b.note(d.COURSE_FOOTNOTE)
+    b.note(d.course_footnote(trong_ky))
 
     # --- Biểu đồ ----------------------------------------------------------
     b.spacer(t.SHELL_GAP)
-    thang = "thang 4" if scale == 4 else "thang 10"
     b.section_title("Xu hướng điểm trung bình học kỳ",
-                    f"Dữ liệu lưu theo thang 10 · đang hiển thị {thang}")
+                    f"Điểm luôn nhập ở DH10 · đang hiển thị DH{scale}")
     st.markdown(
         f'<div style="font-size:13px;color:{t.MUTED};margin-top:3px">'
         "Hiển thị toàn bộ các học kỳ đã có dữ liệu; kỳ đang chọn ở sidebar "
@@ -132,7 +142,12 @@ def render() -> None:
         unsafe_allow_html=True,
     )
     b.spacer(12)
+    chuoi = rules.chuoi_gpa(st.session_state.courses, scale,
+                            st.session_state.nam_hoc, st.session_state.hoc_ky)
     with st.container(border=True):
-        st.altair_chart(_chart(scale), width="stretch")
+        if chuoi:
+            st.altair_chart(_chart(chuoi, scale), width="stretch")
+        else:
+            b.note("Chưa có học kỳ nào đủ dữ liệu để vẽ biểu đồ.")
 
     b.footer(d.FOOTER)

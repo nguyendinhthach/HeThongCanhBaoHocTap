@@ -157,16 +157,51 @@ xem" (vì trang này không phụ thuộc lựa chọn kỳ).
 - Khi phát hiện nguy cơ, **tự động gửi email** đến sinh viên — không chỉ
   hiển thị thụ động khi sinh viên tự truy cập web.
 
-## 9. Chuyển đổi thang điểm hiển thị
+## 9. Thang điểm và chuyển đổi hiển thị
 
-- Toggle "Thang 10 / Thang 4" ở Dashboard: chỉ ảnh hưởng **cách hiển thị**
-  (thẻ GPA, trục biểu đồ, cột điểm tổng kết trong bảng). Dữ liệu gốc luôn
-  lưu theo **thang 10** — quy đổi sang thang 4 chỉ diễn ra ở tầng hiển thị.
-- Bảng quy đổi (cài đặt tại `ui/grading.py::to_scale_4`):
+- Điểm **luôn nhập và lưu ở DH10** (thang 10). Điểm tổng kết môn làm tròn 1
+  chữ số thập phân như học bạ. DH4 và điểm chữ chỉ là lớp quy đổi lúc hiển
+  thị, **không lưu xuống cơ sở dữ liệu** — tránh lệch giữa hai bản.
+- Toggle "DH10 / DH4" ở Dashboard chỉ đổi cách hiển thị (thẻ GPA, trục biểu
+  đồ, cột điểm tổng kết). Ở DH4 hiển thị kèm điểm chữ, ví dụ `3.0 (B)`.
+- Bảng quy đổi 5 bậc (cài đặt tại `ui/rules.py::to4` và `ui/rules.py::chu_cai`):
 
-| Thang 10 | ≥ 8.5 | ≥ 8.0 | ≥ 7.0 | ≥ 6.5 | ≥ 5.5 | ≥ 5.0 | ≥ 4.0 | < 4.0 |
-|---|---|---|---|---|---|---|---|---|
-| Thang 4 | 4.0 | 3.5 | 3.0 | 2.5 | 2.0 | 1.5 | 1.0 | 0.0 |
+| DH10 | ≥ 8.5 | ≥ 7.0 | ≥ 5.5 | ≥ 4.0 | < 4.0 |
+|---|---|---|---|---|---|
+| Điểm chữ | A | B | C | D | **E** |
+| DH4 | 4.0 | 3.0 | 2.0 | 1.0 | 0.0 |
+
+### 9.1 Điểm trung bình học kỳ — tính riêng cho từng thang
+
+Cả hai đều là trung bình có trọng số theo tín chỉ, tính **độc lập với nhau**:
+
+```
+DH10 = Σ(điểm DH10 của môn × TC) / Σ TC
+DH4  = Σ(điểm DH4  của môn × TC) / Σ TC     ← quy đổi TỪNG MÔN trước
+```
+
+> **Không được** tính DH4 bằng cách quy đổi điểm trung bình DH10. `to4` là
+> hàm bậc thang nên hai cách cho kết quả khác nhau. Đây là lỗi dễ mắc nhất
+> ở phần này.
+
+Đối chiếu với bảng điểm thật của sinh viên (2 học kỳ, khớp tuyệt đối):
+
+| Học kỳ | TC | DH10 | DH4 | `to4(DH10)` — cách sai |
+|---|---|---|---|---|
+| 2024–2025 HK01 | 18 | 8.19 | 3.50 | 3.00 |
+| 2024–2025 HK02 | 16 | 7.46 | 2.81 | 3.00 |
+
+### 9.2 Các trường hợp biên
+
+- Ngưỡng lấy **bằng**: 7.0 là B (không phải C), 8.5 là A, 4.0 là D. Kiểm
+  chứng bằng cặp 6.9 → C và 7.0 → B trong bảng điểm thật.
+- Môn **điểm E** (< 4.0) vẫn tính vào GPA với DH4 = 0.0, **không** loại khỏi
+  mẫu số. Đây là môn phải học lại.
+- Môn **0 tín chỉ** (ví dụ Sinh hoạt công dân) không ảnh hưởng GPA vì trọng
+  số bằng 0, nhưng vẫn hiện trong bảng môn học.
+- Môn **chưa nhập đủ 100% trọng số thành phần** cho ra điểm *tạm tính* (xem
+  §3.4); điểm tạm tính không được dùng để kết luận đỗ/trượt, nên không tính
+  vào chỉ số "Môn điểm E".
 
 ## 10. Công nghệ
 
@@ -187,9 +222,9 @@ xem" (vì trang này không phụ thuộc lựa chọn kỳ).
 1. **Đăng ký / Đăng nhập** — không nằm trong menu điều hướng chính; truy cập
    qua nút góc dưới sidebar khi chưa đăng nhập.
 2. **Dashboard chính** — chọn năm học/học kỳ xem điểm; thẻ tổng quan (GPA,
-   tín chỉ, môn dưới 5.0, mức nguy cơ tổng thể rút gọn); bảng danh sách môn
+   tín chỉ, môn điểm E (< 4.0), mức nguy cơ tổng thể rút gọn); bảng danh sách môn
    học kèm cột nguy cơ trượt theo môn; biểu đồ xu hướng GPA toàn bộ lịch sử;
-   toggle thang 10/4; nút "+ Thêm môn học".
+   toggle DH10 / DH4; nút "+ Thêm môn học".
 3. **Thêm / cập nhật môn học** — mặc định thu gọn, chỉ hiện bảng "Môn học đã
    thêm trong học kỳ này" (sửa/xoá được) + nút "+ Thêm môn học" để xổ form.
    Form dùng đúng năm học/học kỳ theo sidebar, không nhập lại.

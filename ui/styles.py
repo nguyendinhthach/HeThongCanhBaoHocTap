@@ -4,9 +4,72 @@ Mục tiêu: widget gốc của Streamlit mang đúng viền, bo góc, padding, 
 mockup quy định, để không phải vá lặt vặt ở từng màn hình.
 """
 
+import base64
+
 import streamlit as st
 
 from ui import tokens as t
+
+# Icon điều hướng lấy nguyên path từ mockup. Màu nằm trong chính chuỗi SVG nên
+# mỗi icon phải dựng hai bản: màu thường và màu khi đang chọn.
+_ICON_PATHS = {
+    "dashboard": (
+        '<rect x="1" y="1" width="6" height="6" rx="1.5" fill="{c}"/>'
+        '<rect x="9" y="1" width="6" height="6" rx="1.5" fill="{c}" opacity=".45"/>'
+        '<rect x="1" y="9" width="6" height="6" rx="1.5" fill="{c}" opacity=".45"/>'
+        '<rect x="9" y="9" width="6" height="6" rx="1.5" fill="{c}"/>'
+    ),
+    "add": (
+        '<rect x="1.5" y="1.5" width="13" height="13" rx="3.5" stroke="{c}" '
+        'stroke-width="1.6" fill="none"/>'
+        '<rect x="7.2" y="4.4" width="1.6" height="7.2" rx=".8" fill="{c}"/>'
+        '<rect x="4.4" y="7.2" width="7.2" height="1.6" rx=".8" fill="{c}"/>'
+    ),
+    "risk": (
+        '<path d="M8 1.8 L15 14.2 H1 Z" stroke="{c}" stroke-width="1.6" '
+        'stroke-linejoin="round" fill="none"/>'
+        '<rect x="7.2" y="6" width="1.6" height="4" rx=".8" fill="{c}"/>'
+        '<rect x="7.2" y="11" width="1.6" height="1.6" rx=".8" fill="{c}"/>'
+    ),
+}
+
+
+def _icon(ten: str, mau: str) -> str:
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" '
+           'viewBox="0 0 16 16">' + _ICON_PATHS[ten].replace("{c}", mau)
+           + "</svg>")
+    b64 = base64.b64encode(svg.encode()).decode()
+    return f"url('data:image/svg+xml;base64,{b64}')"
+
+
+_NAV_CSS = "".join(
+    f'  [data-testid="stSidebar"] [class*="st-key-nav_"]'
+    f'.st-key-nav_{k} .stButton button::before '
+    f'{{ background-image: {_icon(k, t.NAV_TEXT)}; }}\n'
+    for k in _ICON_PATHS
+)
+
+
+def nav_active_css(key: str) -> str:
+    """CSS cho mục điều hướng đang chọn: nền trắng, vạch accent, icon xanh."""
+    return f"""
+<style>
+  [data-testid="stSidebar"] [class*="st-key-nav_"].st-key-nav_{key}
+  .stButton button {{
+    background: {t.SURFACE} !important;
+    box-shadow: inset 3px 0 0 0 {t.BRAND} !important;
+  }}
+  [data-testid="stSidebar"] [class*="st-key-nav_"].st-key-nav_{key}
+  .stButton button p {{
+    color: {t.BRAND} !important;
+    font-weight: 600 !important;
+  }}
+  [data-testid="stSidebar"] [class*="st-key-nav_"].st-key-nav_{key}
+  .stButton button::before {{
+    background-image: {_icon(key, t.BRAND)};
+  }}
+</style>
+"""
 
 _CSS = f"""
 <style>
@@ -25,9 +88,23 @@ body {{ color: {t.BODY_TEXT}; -webkit-font-smoothing: antialiased; }}
 
 .stApp {{ background: {t.SURFACE}; }}
 
-/* Vùng nội dung chính: padding 44px 56px 64px như mockup */
+/* Thanh header thương hiệu: ghim trên cùng, phủ hết chiều ngang kể cả
+   sidebar. Ẩn header gốc của Streamlit vì mockup không có thanh công cụ. */
+[data-testid="stHeader"] {{ display: none !important; }}
+
+.mk-header {{
+  position: fixed; top: 0; left: 0; right: 0; z-index: 2147483000;
+  height: {t.HEADER_H}px; box-sizing: border-box;
+  background: {t.BRAND}; color: {t.SURFACE};
+  padding: 16px 32px;
+  font-size: 18px; font-weight: 700; letter-spacing: -0.01em;
+  display: flex; align-items: center;
+}}
+
+/* Vùng nội dung chính: padding 44px 56px 64px như mockup, cộng chiều cao
+   thanh header vì thanh này nằm ngoài luồng. */
 .block-container {{
-  padding: {t.MAIN_PAD} !important;
+  padding: calc(44px + {t.HEADER_H}px) 56px 64px !important;
   max-width: 1180px;
 }}
 
@@ -39,7 +116,7 @@ body {{ color: {t.BODY_TEXT}; -webkit-font-smoothing: antialiased; }}
   border-right: 1px solid {t.BORDER};
 }}
 [data-testid="stSidebar"] > div:first-child {{
-  padding: 32px 24px 24px;
+  padding: calc(32px + {t.HEADER_H}px) 24px 24px;
 }}
 
 /* Sidebar luôn hiển thị: ẩn nút thu gọn và nút bung lại */
@@ -51,14 +128,21 @@ body {{ color: {t.BODY_TEXT}; -webkit-font-smoothing: antialiased; }}
 }}
 
 /* --- Ô nhập & select --------------------------------------------------- */
+/* Streamlit 1.61 không còn gắn data-baseweb="select" cho ô chọn; hook ổn định
+   là stSelectbox, với khung viền nằm ở div lồng thứ hai. */
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input,
-[data-baseweb="select"] > div {{
+[data-testid="stSelectbox"] > div > div {{
   border: 1px solid {t.BORDER_INPUT} !important;
   border-radius: {t.RADIUS_INPUT}px !important;
   background: {t.SURFACE} !important;
   color: {t.TEXT} !important;
   font-size: 15px !important;
+}}
+[data-testid="stSelectbox"] input {{
+  font-size: 15px !important;
+  padding: 9px 12px !important;
+  color: {t.TEXT} !important;
 }}
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input {{
@@ -68,6 +152,41 @@ body {{ color: {t.BODY_TEXT}; -webkit-font-smoothing: antialiased; }}
 [data-testid="stNumberInput"] input:focus {{
   border-color: {t.PRIMARY} !important;
   box-shadow: 0 0 0 3px rgba(0,104,201,0.15) !important;
+}}
+
+/* Ô chọn chỉ được bung danh sách rồi chọn, đúng như <select> của mockup.
+   Việc này chia hai phần và cần cả hai:
+
+   - Bàn phím do `filter_mode=None` ở mỗi st.selectbox lo (xem app.py và các
+     màn hình) — tắt hẳn tính năng gõ để lọc.
+   - Con trỏ chuột do khối này lo: filter_mode không làm <input> thành
+     readonly, nên bấm vào vẫn hiện con trỏ nháy và bôi đen được chữ.
+
+   Tắt pointer trên ô nhập thì cú bấm rơi xuống div bao, mà div đó lại không
+   mở danh sách — chỉ nút mũi tên mở được. Nên kéo luôn nút mũi tên phủ kín
+   khung để bấm chỗ nào trong ô cũng bung danh sách. */
+[data-testid="stSelectbox"] input {{
+  pointer-events: none !important;
+  caret-color: transparent !important;
+  user-select: none !important;
+  cursor: pointer !important;
+}}
+[data-testid="stSelectbox"] > div > div {{
+  position: relative !important;
+  cursor: pointer !important;
+}}
+[data-testid="stSelectbox"] > div > div > button {{
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent !important;
+  border: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  padding: 0 10px 0 0 !important;
+  cursor: pointer !important;
 }}
 
 /* Nhãn của widget: 14px/600 như mockup */
@@ -85,25 +204,81 @@ body {{ color: {t.BODY_TEXT}; -webkit-font-smoothing: antialiased; }}
   color: {t.MUTED} !important;
 }}
 
-/* --- Điều hướng sidebar: ô chọn bo góc, mục đang chọn nền xanh nhạt ----- */
-[data-testid="stSidebar"] [role="radiogroup"] {{ gap: 2px !important; }}
-[data-testid="stSidebar"] [role="radiogroup"] label {{
-  padding: 7px 8px !important;
-  border-radius: {t.RADIUS_SMALL}px !important;
-  margin: 0 !important;
-}}
-[data-testid="stSidebar"] [role="radiogroup"] label:hover {{
-  background: #e4e7ef;
-}}
-[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {{
-  background: #e2e8f4;
-}}
-[data-testid="stSidebar"] [role="radiogroup"] label p {{
+/* --- Điều hướng sidebar: nút có icon, mục đang chọn nền trắng + vạch trái -
+   Dùng nút thay vì radio để đặt được icon và vạch accent; đổi màn hình bằng
+   rerun nên cũng tránh luôn lỗi radio phải bấm hai lần. */
+[data-testid="stSidebar"] [class*="st-key-nav_"] .stButton button {{
+  border: none !important;
+  background: transparent !important;
+  border-radius: {t.RADIUS_INPUT}px !important;
+  padding: 10px 12px 10px 40px !important;
   font-size: 15px !important;
-  color: {t.TEXT} !important;
+  font-weight: 400 !important;
+  color: {t.NAV_TEXT} !important;
+  text-align: left !important;
+  width: 100% !important;
+  position: relative;
+  box-shadow: inset 3px 0 0 0 transparent !important;
+  justify-content: flex-start !important;
 }}
-[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) p {{
-  font-weight: 600 !important;
+/* Streamlit bọc nhãn nút trong một div flex căn giữa; text-align trên <p>
+   không thắng được nó nên phải căn trái ngay ở div đó. */
+[data-testid="stSidebar"] [class*="st-key-nav_"] .stButton button > div {{
+  justify-content: flex-start !important;
+  width: 100% !important;
+}}
+[data-testid="stSidebar"] [class*="st-key-nav_"] .stButton button p {{
+  text-align: left !important;
+  width: 100%;
+  color: {t.NAV_TEXT} !important;
+}}
+[data-testid="stSidebar"] [class*="st-key-nav_"] .stButton button::before {{
+  content: "";
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  width: 17px; height: 17px;
+  background-repeat: no-repeat; background-position: center;
+}}
+[data-testid="stSidebar"] [class*="st-key-nav_"] .stButton button:hover {{
+  background: {t.NAV_HOVER} !important;
+  color: {t.NAV_TEXT} !important;
+}}
+.st-key-nav_group {{ gap: 4px !important; }}
+{_NAV_CSS}
+/* Nhãn nhóm "Chức năng" và "Kỳ học đang xem" */
+.mk-side-label {{
+  font-size: 14px; font-weight: 600; color: {t.TEXT}; margin-bottom: 10px;
+}}
+
+/* Link "+ Thêm học kỳ mới" */
+.st-key-btn_add_term button {{
+  border: none !important; padding: 0 !important;
+  font-size: 13px !important; font-weight: 600 !important;
+  color: {t.BRAND} !important;
+}}
+.st-key-btn_add_term button:hover {{ text-decoration: underline !important; }}
+
+/* Form thêm học kỳ: thẻ trắng thu nhỏ trong sidebar */
+.st-key-add_term_box {{
+  background: {t.SURFACE}; border: 1px solid {t.BORDER};
+  border-radius: {t.RADIUS_INPUT}px; padding: 12px !important;
+  gap: 8px !important;
+}}
+.st-key-add_term_box [data-testid="stTextInput"] input,
+.st-key-add_term_box [data-testid="stSelectbox"] input {{
+  padding: 8px 10px !important; font-size: 14px !important;
+}}
+.st-key-add_term_box [data-testid="stSelectbox"] > div > div {{
+  border-radius: {t.RADIUS_SMALL}px !important;
+}}
+.st-key-add_term_box [data-testid="stTextInput"] input {{
+  border-radius: {t.RADIUS_SMALL}px !important;
+}}
+.st-key-add_term_box [data-testid="stWidgetLabel"] p {{
+  font-size: 12px !important; font-weight: 400 !important;
+  color: {t.MUTED} !important;
+}}
+.st-key-btn_save_term button, .st-key-btn_cancel_term button {{
+  font-size: 13px !important; padding: 8px 14px !important;
 }}
 
 /* Nút Đăng xuất: chữ nhỏ, thụt vào ngang với tên người dùng */
@@ -236,6 +411,87 @@ body {{ color: {t.BODY_TEXT}; -webkit-font-smoothing: antialiased; }}
   font-size: 13px; color: {t.FAINT};
 }}
 
+/* --- Màn đăng nhập / đăng ký ------------------------------------------ */
+.st-key-auth_col {{ align-self: center; margin: 0 auto; }}
+.st-key-auth_wrap {{
+  background: {t.SIDEBAR_BG};
+  border-radius: 14px;
+  margin: -8px -16px 0;
+  padding: 48px 16px 56px !important;
+  min-height: 640px;
+  align-items: center;
+}}
+.st-key-auth_card {{
+  border: 1px solid {t.BORDER};
+  border-radius: 12px;
+  background: {t.SURFACE};
+  padding: 26px 28px 28px !important;
+  box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+}}
+/* Khối niên khoá trong tab Đăng ký */
+.st-key-auth_khoa {{
+  background: {t.PANEL_BG};
+  border: 1px solid {t.BORDER};
+  border-radius: {t.RADIUS_CARD}px;
+  padding: 18px !important;
+}}
+.mk-h1-auth {{
+  font-size: 34px; font-weight: 700; letter-spacing: -0.02em;
+  color: {t.BODY_TEXT}; margin: 0;
+}}
+
+/* --- Bảng "Môn học đã thêm" ------------------------------------------- */
+/* Bảng này dựng bằng st.columns (cần nút bấm được) nên phải vá lại cho
+   giống bảng HTML: viền bao, hàng tiêu đề, kẻ ngang, ô gọn. */
+.st-key-semtable {{
+  border: 1px solid {t.BORDER};
+  border-radius: {t.RADIUS_CARD}px;
+  overflow: hidden;
+  padding: 0 !important;
+  gap: 0 !important;
+}}
+.st-key-semhead {{
+  background: {t.SIDEBAR_BG};
+  border-bottom: 1px solid {t.BORDER};
+  padding: 11px 12px !important;
+  gap: 0 !important;
+}}
+[class*="st-key-semrow_"] {{
+  border-bottom: 1px solid {t.ROW_LINE};
+  padding: 6px 12px !important;
+  gap: 0 !important;
+}}
+/* Nút Sửa / Xoá: viền mảnh, chữ 13px như mockup */
+[class*="st-key-semact_"] {{ gap: 8px !important; }}
+[class*="st-key-edit_"] .stButton button,
+[class*="st-key-del_"] .stButton button {{
+  border: 1px solid {t.BORDER_INPUT} !important;
+  background: {t.SURFACE} !important;
+  border-radius: {t.RADIUS_SMALL}px !important;
+  padding: 6px 14px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  min-height: 0 !important;
+}}
+[class*="st-key-edit_"] .stButton button {{ color: {t.PRIMARY} !important; }}
+[class*="st-key-edit_"] .stButton button:hover {{
+  border-color: {t.PRIMARY} !important; background: #f5f9ff !important;
+}}
+[class*="st-key-del_"] .stButton button {{ color: {t.DANGER} !important; }}
+[class*="st-key-del_"] .stButton button:hover {{
+  border-color: {t.DANGER} !important; background: #fdf1f1 !important;
+}}
+
+/* Nút xoá trong hộp xác nhận: nền đỏ đặc */
+.st-key-xoa_that .stButton button[kind="primary"] {{
+  background: {t.DANGER} !important;
+  border-color: {t.DANGER} !important;
+}}
+.st-key-xoa_that .stButton button[kind="primary"]:hover {{
+  background: {t.DANGER_HOVER} !important;
+  border-color: {t.DANGER_HOVER} !important;
+}}
+
 /* Bỏ khoảng trắng thừa Streamlit chèn giữa các khối markdown */
 [data-testid="stMarkdownContainer"] > div:empty {{ display: none; }}
 </style>
@@ -244,3 +500,15 @@ body {{ color: {t.BODY_TEXT}; -webkit-font-smoothing: antialiased; }}
 
 def inject() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
+
+
+def hide_sidebar() -> None:
+    """Ẩn hẳn sidebar ở màn đăng nhập/đăng ký.
+
+    Không dựng nội dung sidebar là chưa đủ: Streamlit vẫn giữ khung rỗng và
+    thân trang vẫn bị thụt vào 300px, nên phải ẩn chính phần tử đó.
+    """
+    st.markdown(
+        '<style>[data-testid="stSidebar"]{display:none !important;}</style>',
+        unsafe_allow_html=True,
+    )

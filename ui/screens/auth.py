@@ -93,27 +93,60 @@ def _dang_nhap() -> None:
 
 
 def _sinh_hoc_ky() -> list[str]:
-    """Danh sách năm học – học kỳ suy ra từ niên khoá."""
-    try:
-        tu, den = int(st.session_state.khoa_from), int(st.session_state.khoa_to)
-    except (TypeError, ValueError):
-        return []
-    if den <= tu or den - tu > 8:
-        return []
-    return [f"{y}–{y + 1} HK{k}"
-            for y in range(tu, den)
-            for k in range(1, st.session_state.so_ky + 1)]
+    """Chip xem trước: mọi năm trong niên khoá nhân số học kỳ mỗi năm."""
+    so = len(d.semesters(st.session_state.so_ky))
+    return [f"{nam} HK{k}"
+            for nam in d.years(st.session_state.khoa_from,
+                               st.session_state.khoa_to)
+            for k in range(1, so + 1)]
+
+
+def _tao_tai_khoan() -> None:
+    """Chốt niên khoá thành danh sách năm học thật rồi vào dashboard.
+
+    Trước đây danh sách sinh ra chỉ dùng để vẽ chip, còn sidebar vẫn nhận
+    danh sách cứng — nên câu "hệ thống sẽ tự sinh" chưa đúng. Giờ nó thành
+    nguồn của ô chọn Năm học.
+    """
+    nam = d.years(st.session_state.khoa_from, st.session_state.khoa_to)
+    if nam:
+        st.session_state.year_list = nam
+        st.session_state.nam_hoc = nam[0]
+        st.session_state.hoc_ky = d.semesters(st.session_state.so_ky)[0]
+    _vao_dashboard()
 
 
 def _dang_ky() -> None:
     st.session_state.ho_ten = st.text_input(
-        "Họ và Tên", value=st.session_state.ho_ten,
-        placeholder="Nguyễn Đình Thạch")
-    st.text_input("Email", value="sinhvien@sv.edu.vn", key="dk_email")
+        "Họ và Tên", value=st.session_state.ho_ten)
+    st.text_input("Email", key="dk_email")
     st.text_input("Mật khẩu", type="password", key="dk_mat_khau")
 
-    b.note("Hệ thống sẽ tự sinh danh sách năm học – học kỳ từ thông tin dưới "
-           "đây. Bạn vẫn có thể thêm học kỳ mới sau.")
+    b.spacer(2)
+    with st.container(key="auth_khoa"):
+        _khoi_nien_khoa()
+
+    # Mockup đặt cụm CTA ngoài panel xám, ngay dưới nó.
+    b.spacer(14)
+    with st.container(horizontal=True, vertical_alignment="center",
+                      gap="medium"):
+        if st.button("Tạo tài khoản", type="primary", key="cta_register"):
+            _tao_tai_khoan()
+        st.markdown(
+            f'<span style="font-size:14px;color:{t.MUTED}">Có thể thêm học kỳ '
+            f"mới bất cứ lúc nào sau này.</span>",
+            unsafe_allow_html=True,
+        )
+
+
+def _khoi_nien_khoa() -> None:
+    """Panel xám gom các thông tin dùng để sinh danh sách học kỳ."""
+    st.markdown(
+        f'<div style="font-size:14px;color:{t.MUTED};line-height:1.45">'
+        "Hệ thống sẽ tự sinh danh sách năm học – học kỳ từ thông tin dưới "
+        "đây. Bạn vẫn có thể thêm học kỳ mới sau.</div>",
+        unsafe_allow_html=True,
+    )
     b.spacer(10)
 
     c1, c2 = st.columns(2)
@@ -124,11 +157,11 @@ def _dang_ky() -> None:
 
     c3, c4 = st.columns(2)
     c3.selectbox("Số năm học dự kiến", ["4 năm", "4.5 năm", "5 năm"],
-                 key="dk_so_nam")
+                 key="dk_so_nam", filter_mode=None)
     ky = [2, 3]
     st.session_state.so_ky = c4.selectbox(
         "Số học kỳ mỗi năm", ky, index=ky.index(st.session_state.so_ky),
-        format_func=lambda n: f"{n} học kỳ")
+        format_func=lambda n: f"{n} học kỳ", filter_mode=None)
 
     # Chip niên khoá: 12px monospace, nền #e8f0fa, bo tròn
     hoc_ky = _sinh_hoc_ky()
@@ -138,34 +171,30 @@ def _dang_ky() -> None:
             f'<div style="display:flex;flex-wrap:wrap;gap:8px;'
             f'align-items:center;margin-top:8px">'
             f'<span style="font-size:13px;color:{t.MUTED};margin-right:4px">'
-            f"Sẽ tạo:</span>{chip}</div>",
-            unsafe_allow_html=True,
-        )
-    b.spacer(14)
-
-    with st.container(horizontal=True, vertical_alignment="center",
-                      gap="medium"):
-        if st.button("Tạo tài khoản", type="primary", key="cta_register"):
-            _vao_dashboard()
-        st.markdown(
-            f'<span style="font-size:14px;color:{t.MUTED}">Có thể thêm học kỳ '
-            f"mới bất cứ lúc nào sau này.</span>",
+            f"Danh sách học kỳ dự kiến:</span>{chip}</div>",
             unsafe_allow_html=True,
         )
 
 
 def render() -> None:
-    with st.container(key="auth_col"):
-        b.page_title("Cảnh báo học tập sớm",
-                     "Đăng nhập để theo dõi điểm và mức nguy cơ của bạn.")
-        b.spacer(22)
+    # Mockup đặt cả màn auth trên nền xám bo góc, form nằm trong thẻ trắng.
+    with st.container(key="auth_wrap"):
+        with st.container(key="auth_col"):
+            st.markdown(
+                '<div class="mk-h1-auth">Chào mừng bạn trở lại</div>'
+                f'<div style="font-size:16px;color:{t.MUTED};margin-top:6px">'
+                "Đăng nhập để theo dõi điểm và mức nguy cơ của bạn.</div>",
+                unsafe_allow_html=True,
+            )
+            b.spacer(22)
 
-        la_dang_nhap = st.session_state.auth_mode == "login"
-        _tabs(la_dang_nhap)
+            with st.container(key="auth_card"):
+                la_dang_nhap = st.session_state.auth_mode == "login"
+                _tabs(la_dang_nhap)
 
-        if la_dang_nhap:
-            _dang_nhap()
-        else:
-            _dang_ky()
+                if la_dang_nhap:
+                    _dang_nhap()
+                else:
+                    _dang_ky()
 
     b.footer(d.FOOTER)
