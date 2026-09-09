@@ -197,3 +197,6 @@ models/*.onnx
 .streamlit/secrets.toml
 # Mockup giao diện xuất từ Claude Design (chỉ dùng tham chiếu cục bộ)
 docs/mockups/
+
+# Tài liệu Word (đề cương, biên bản) — chỉ tham chiếu cục bộ
+*.docx
