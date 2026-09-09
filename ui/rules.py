@@ -177,6 +177,15 @@ def validate_year(tu: str, den: str, da_co: list[str]) -> dict:
     if nhan in da_co:
         return {"ok": False, "nhan": nhan,
                 "loi": f"Năm học {nhan} đã tồn tại."}
+    # Cơ sở dữ liệu chỉ lưu năm đầu và năm cuối của niên khoá, danh sách năm
+    # học suy ra từ khoảng đó — nên chỉ nới thêm được năm liền kề, không nhảy
+    # cóc. Nhảy cóc sẽ tạo ra những năm trống ở giữa mà không ai chủ ý thêm.
+    if da_co:
+        ke_tiep = int(da_co[-1].replace("–", "-").split("-")[0]) + 1
+        if int(tu) != ke_tiep:
+            return {"ok": False, "nhan": nhan,
+                    "loi": f"Chỉ thêm được năm học nối tiếp năm cuối cùng: "
+                           f"{ke_tiep}–{ke_tiep + 1}."}
     return {"ok": True, "loi": "", "nhan": nhan}
 
 

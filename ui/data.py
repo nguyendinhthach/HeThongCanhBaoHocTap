@@ -1,21 +1,17 @@
-"""Dữ liệu mẫu và cấu hình hiển thị.
+"""Cấu hình hiển thị và các số liệu còn tạm cố định.
 
-Môn học là mô hình thật, không phải ảnh chụp kết quả: mỗi môn gắn năm–kỳ và
-giữ nguyên danh sách điểm thành phần, còn điểm tổng kết do ui/rules.py tính.
-Nhờ vậy đổi kỳ, sửa, xoá đều chạy được mà không phải sửa chỗ hiển thị.
-
-Danh sách môn sống trong st.session_state (xem seed_courses) chứ không để ở
-cấp module: mọi phiên trình duyệt phải có bản riêng, nếu không hai tab sẽ
-giẫm lên nhau.
+Môn học và hồ sơ người dùng nay đọc từ SQL Server qua db/repo.py, không còn
+nằm ở đây. Phần dữ liệu mẫu bên dưới chỉ còn một việc: sinh ra
+db/du_lieu_mau.sql, để bộ số dùng lúc dựng giao diện được giữ nguyên làm mốc
+đối chiếu.
 
 Các con số ở phần "Cảnh báo & Mục tiêu" vẫn là giá trị cố định — phần đó chờ
-mô hình dự đoán.
+mô hình dự đoán, chỗ lưu đã sẵn sàng ở bảng du_doan_canh_bao.
 """
 
 from ui import rules
 from ui import tokens as t
 
-YEARS = ["2023–2024", "2024–2025", "2025–2026", "2026–2027"]
 SEMESTERS = ["Học kỳ 1", "Học kỳ 2", "Học kỳ 3"]
 
 
@@ -45,12 +41,13 @@ SCREENS = {
     "risk": "Cảnh báo & Mục tiêu",
 }
 
-USER = {"name": "Sinh viên", "initials": "SV", "khoa": "2023–2027"}
-
-# --- Môn học ---------------------------------------------------------------
-# Port nguyên SEED của mockup, thêm mã môn học. Mã mới là khoá nhận diện môn
-# (tên nhập tay không đáng tin), còn điểm thành phần dựng lại từ điểm mục tiêu
-# bằng rules.mk_rows thay vì lưu điểm tổng kết.
+# --- Dữ liệu mẫu -----------------------------------------------------------
+# Port nguyên SEED của mockup, thêm mã môn học. Mã là khoá nhận diện môn (tên
+# nhập tay không đáng tin), còn điểm thành phần dựng lại từ điểm mục tiêu bằng
+# rules.mk_rows thay vì lưu điểm tổng kết.
+#
+# KHÔNG còn được ứng dụng dùng để hiển thị — chỉ dùng khi cần sinh lại
+# db/du_lieu_mau.sql.
 _SEED = [
     ("2024–2025", "Học kỳ 2", "20CT3101", "Công nghệ phần mềm", 3, 7.1,
      "Học lần 1"),
@@ -78,7 +75,7 @@ _SEED = [
 
 
 def seed_courses() -> list[dict]:
-    """Bản sao dữ liệu mẫu cho một phiên mới."""
+    """Bộ 11 môn mẫu, dùng để sinh db/du_lieu_mau.sql."""
     return [
         {"id": i + 1, "year": nam, "sem": ky, "code": ma, "name": ten,
          "credits": tc, "attempt": loai,

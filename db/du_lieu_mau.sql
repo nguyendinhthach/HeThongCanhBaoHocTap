@@ -25,15 +25,19 @@ DECLARE @lt_cc INT = (SELECT id FROM dbo.loai_thanh_phan WHERE ma = 'chuyen_can'
 DECLARE @lt_gk INT = (SELECT id FROM dbo.loai_thanh_phan WHERE ma = 'giua_ky');
 DECLARE @lt_ck INT = (SELECT id FROM dbo.loai_thanh_phan WHERE ma = 'cuoi_ky');
 
-/* Tài khoản demo. Mật khẩu để dạng chuỗi thay thế, KHÔNG phải hash thật —
-   sẽ sinh hash bcrypt đúng khi làm chức năng đăng nhập. Chuỗi này không khớp
-   với bất kỳ mật khẩu nào nên không đăng nhập được, đó là chủ ý.
-   Dùng email demo thay vì email thật của nhóm vì tệp này nằm trên GitHub. */
+/* Tài khoản demo để chạy thử và đối chiếu số liệu.
+
+       Email    : demo@dlu.edu.vn
+       Mật khẩu : demo1234
+
+   Chuỗi bên dưới là hash bcrypt của mật khẩu đó, không phải mật khẩu gốc —
+   không đọc ngược ra được. Dùng email demo thay vì email thật của nhóm vì
+   tệp này nằm trên GitHub. */
 INSERT INTO dbo.nguoi_dung
     (email, mat_khau_hash, ho_ten, nien_khoa_tu, nien_khoa_den,
      so_ky_moi_nam, thang_diem, muc_tieu)
 VALUES
-    (N'demo@dlu.edu.vn', 'CHUA_CO_HASH_BCRYPT', N'Sinh viên Demo',
+    (N'demo@dlu.edu.vn', '$2b$12$HSArfk/lPbnuuRR1ccDGjOjnV8f.LHNqMFnwOvuUWf1Hq.vkMkxHS', N'Sinh viên Demo',
      2023, 2027, 2, 10, 'kha');
 SET @uid = SCOPE_IDENTITY();
 

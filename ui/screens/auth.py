@@ -6,8 +6,10 @@ cạnh nút CTA phải chuyển được sang tab đăng ký.
 
 import streamlit as st
 
+from db import bao_mat, repo
 from ui import blocks as b
 from ui import data as d
+from ui import phien
 from ui import tokens as t
 
 # Chiều rộng cột form và kiểu tab, lấy đúng số đo trong mockup.
@@ -66,23 +68,47 @@ def _tabs(la_dang_nhap: bool) -> None:
             _chuyen("register")
 
 
-def _vao_dashboard() -> None:
-    st.session_state.logged_in = True
-    st.session_state.screen = "dashboard"
-    st.rerun()
+def _bao_loi(thong_bao: str) -> None:
+    b.spacer(10)
+    st.markdown(
+        f'<div style="background:#fdf1f1;border:1px solid #f3c9c9;'
+        f'border-radius:{t.RADIUS_INPUT}px;padding:11px 14px;'
+        f'font-size:14px;color:{t.DANGER}">{thong_bao}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _kiem_dang_nhap() -> str:
+    """Kiểm tra thông tin đăng nhập; trả về chuỗi lỗi, rỗng là thành công."""
+    email = (st.session_state.dn_email or "").strip()
+    mat_khau = st.session_state.dn_mat_khau or ""
+    if not email or not mat_khau:
+        return "Nhập đủ email và mật khẩu."
+
+    chuoi_bam = repo.lay_hash_mat_khau(email)
+    if not chuoi_bam or not bao_mat.kiem_tra(mat_khau, chuoi_bam):
+        # Cố ý dùng CHUNG một câu cho cả hai trường hợp sai email và sai mật
+        # khẩu: trả lời khác nhau sẽ giúp người ngoài dò ra email nào đã có
+        # tài khoản trong hệ thống.
+        return "Email hoặc mật khẩu không đúng."
+
+    phien.dang_nhap(repo.ho_so_theo_email(email))
+    return ""
 
 
 def _dang_nhap() -> None:
-    st.text_input("Email", value="sinhvien@sv.edu.vn", key="dn_email")
-    st.text_input("Mật khẩu", type="password", value="12345678",
-                  key="dn_mat_khau")
+    st.text_input("Email", key="dn_email", placeholder="ban@dlu.edu.vn")
+    st.text_input("Mật khẩu", type="password", key="dn_mat_khau")
     b.spacer(4)
 
+    loi = ""
     # Mockup: CTA và dòng "Chưa có tài khoản? Đăng ký" nằm CÙNG HÀNG, gap 14px
     with st.container(horizontal=True, vertical_alignment="center",
                       gap="medium"):
         if st.button("Đăng nhập", type="primary", key="cta_login"):
-            _vao_dashboard()
+            loi = _kiem_dang_nhap()
+            if not loi:
+                st.rerun()
         st.markdown(
             f'<span style="font-size:14px;color:{t.MUTED};'
             f'white-space:nowrap">Chưa có tài khoản?</span>',
@@ -90,6 +116,9 @@ def _dang_nhap() -> None:
         )
         if st.button("Đăng ký", key="link_register", type="tertiary"):
             _chuyen("register")
+
+    if loi:
+        _bao_loi(loi)
 
 
 def _sinh_hoc_ky() -> list[str]:
@@ -101,19 +130,38 @@ def _sinh_hoc_ky() -> list[str]:
             for k in range(1, so + 1)]
 
 
-def _tao_tai_khoan() -> None:
-    """Chốt niên khoá thành danh sách năm học thật rồi vào dashboard.
+_TOI_THIEU_MAT_KHAU = 8
 
-    Trước đây danh sách sinh ra chỉ dùng để vẽ chip, còn sidebar vẫn nhận
-    danh sách cứng — nên câu "hệ thống sẽ tự sinh" chưa đúng. Giờ nó thành
-    nguồn của ô chọn Năm học.
+
+def _tao_tai_khoan() -> str:
+    """Tạo tài khoản mới rồi đăng nhập luôn.
+
+    Trả về chuỗi lỗi, rỗng nghĩa là đã tạo xong. Niên khoá không lưu thành
+    danh sách năm học: cơ sở dữ liệu chỉ giữ năm đầu và năm cuối, danh sách
+    suy ra từ đó (xem db/repo.py).
     """
-    nam = d.years(st.session_state.khoa_from, st.session_state.khoa_to)
-    if nam:
-        st.session_state.year_list = nam
-        st.session_state.nam_hoc = nam[0]
-        st.session_state.hoc_ky = d.semesters(st.session_state.so_ky)[0]
-    _vao_dashboard()
+    ten = (st.session_state.ho_ten or "").strip()
+    email = (st.session_state.dk_email or "").strip()
+    mat_khau = st.session_state.dk_mat_khau or ""
+
+    if not ten:
+        return "Nhập họ và tên."
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return "Email không hợp lệ."
+    if len(mat_khau) < _TOI_THIEU_MAT_KHAU:
+        return f"Mật khẩu phải từ {_TOI_THIEU_MAT_KHAU} ký tự trở lên."
+    if not d.years(st.session_state.khoa_from, st.session_state.khoa_to):
+        return ("Niên khoá không hợp lệ — năm kết thúc phải lớn hơn năm bắt "
+                "đầu và cách nhau không quá 8 năm.")
+    if repo.email_da_dung(email):
+        return "Email này đã có tài khoản. Hãy đăng nhập."
+
+    repo.tao_tai_khoan(email, bao_mat.bam(mat_khau), ten,
+                       int(st.session_state.khoa_from),
+                       int(st.session_state.khoa_to),
+                       st.session_state.so_ky)
+    phien.dang_nhap(repo.ho_so_theo_email(email))
+    return ""
 
 
 def _dang_ky() -> None:
@@ -128,15 +176,21 @@ def _dang_ky() -> None:
 
     # Mockup đặt cụm CTA ngoài panel xám, ngay dưới nó.
     b.spacer(14)
+    loi = ""
     with st.container(horizontal=True, vertical_alignment="center",
                       gap="medium"):
         if st.button("Tạo tài khoản", type="primary", key="cta_register"):
-            _tao_tai_khoan()
+            loi = _tao_tai_khoan()
+            if not loi:
+                st.rerun()
         st.markdown(
             f'<span style="font-size:14px;color:{t.MUTED}">Có thể thêm học kỳ '
             f"mới bất cứ lúc nào sau này.</span>",
             unsafe_allow_html=True,
         )
+
+    if loi:
+        _bao_loi(loi)
 
 
 def _khoi_nien_khoa() -> None:

@@ -2,6 +2,7 @@
 
 import streamlit as st
 
+from db import repo
 from ui import blocks as b
 from ui import data as d
 from ui import rules
@@ -136,6 +137,7 @@ def render() -> None:
                 if st.button(f"{ten}    ·    {g['hint']}", key=f"goal_{i}",
                              width="stretch"):
                     st.session_state.goal = ten
+                    repo.dat_muc_tieu(st.session_state.user_id, ten)
                     st.rerun()
 
         with ket_qua:

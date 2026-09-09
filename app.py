@@ -1,16 +1,18 @@
 """Hệ thống cảnh báo sớm nguy cơ học tập — giao diện Streamlit.
 
-Giai đoạn này chỉ dựng giao diện theo docs/mockups/: mọi số liệu là dữ liệu
-tĩnh trong ui/data.py, chưa có nghiệp vụ, chưa nối cơ sở dữ liệu, chưa gắn mô
-hình học máy.
+Môn học, điểm và hồ sơ người dùng đọc từ SQL Server qua db/repo.py. Riêng
+mức nguy cơ, lý do và gợi ý cải thiện vẫn là số liệu tĩnh trong ui/data.py vì
+chưa gắn mô hình học máy.
 
 Chạy:  streamlit run app.py
 """
 
 import streamlit as st
 
+from db import ket_noi, repo
 from ui import blocks as b
 from ui import data as d
+from ui import phien
 from ui import rules
 from ui import styles
 from ui import tokens as t
@@ -23,9 +25,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Chỉ còn trạng thái giao diện. Hồ sơ và môn học nạp từ cơ sở dữ liệu lúc
+# đăng nhập (ui/phien.py), không đặt mặc định ở đây.
 _DEFAULTS = {
     "screen": "dashboard",
     "logged_in": False,
+    "user_id": None,
     "auth_mode": "login",
     "ho_ten": "",
     "khoa_from": "2023",
@@ -36,9 +41,9 @@ _DEFAULTS = {
     "scale": 10,
     "goal": "Đạt loại Khá",
     "form_open": False,
-    # Môn học phải ở session_state chứ không phải hằng số cấp module: sửa/xoá
-    # của phiên này không được ảnh hưởng tab khác.
-    "courses": None,          # nạp bằng seed_courses() trong _init
+    # Bản sao tạm của dữ liệu trong cơ sở dữ liệu, đọc lại ở mỗi lần chạy lại
+    # trang. Không phải kho dữ liệu — xem ui/phien.py.
+    "courses": [],
     "editing_id": None,
     "confirm_id": None,
     "form_rows": None,
@@ -48,9 +53,8 @@ _DEFAULTS = {
     "f_attempt_no": 1,
     "f_year": None,
     "f_sem": None,
-    # Năm học: đăng ký sinh ra từ niên khoá, sau đó nới thêm bằng form
-    # "Thêm năm học mới". Học kỳ không nằm ở đây vì suy từ so_ky.
-    "year_list": list(d.YEARS),
+    # Năm học suy từ niên khoá trong hồ sơ; danh sách thật nạp lúc đăng nhập.
+    "year_list": [],
     "add_year_open": False,
 }
 
@@ -58,8 +62,6 @@ _DEFAULTS = {
 def _init() -> None:
     for k, v in _DEFAULTS.items():
         st.session_state.setdefault(k, v)
-    if st.session_state.courses is None:
-        st.session_state.courses = d.seed_courses()
     if st.session_state.form_rows is None:
         st.session_state.form_rows = d.form_rows_moi()
 
@@ -141,6 +143,9 @@ def _form_them_nam() -> None:
         n1, n2 = st.columns(2)
         if n1.button("Lưu", key="btn_save_term", type="primary",
                      disabled=not kt["ok"], width="stretch"):
+            # Niên khoá nới thêm một năm; danh sách năm học suy lại từ đó.
+            repo.them_nam_hoc(st.session_state.user_id)
+            st.session_state.khoa_to = str(int(st.session_state.khoa_to) + 1)
             st.session_state.year_list.append(kt["nhan"])
             st.session_state.nam_hoc = kt["nhan"]
             st.session_state.hoc_ky = d.semesters(st.session_state.so_ky)[0]
@@ -196,7 +201,7 @@ def _sidebar() -> None:
                            type="tertiary"):
                 _mo_them_nam()
 
-        ten = (st.session_state.ho_ten or "").strip() or d.USER["name"]
+        ten = (st.session_state.ho_ten or "").strip() or "Sinh viên"
         chu_cai = "".join(w[0] for w in ten.split()[-2:]).upper()
         st.markdown(
             f'<div style="margin-top:28px;padding-top:20px;'
@@ -208,13 +213,11 @@ def _sidebar() -> None:
             f'justify-content:center;flex:0 0 36px">{chu_cai}</div>'
             f'<div><div style="font-size:14px;font-weight:600">{ten}</div>'
             f'<div style="font-size:12px;color:{t.MUTED}">Niên khoá '
-            f'{d.USER["khoa"]}</div></div></div>',
+            f'{phien.nien_khoa()}</div></div></div>',
             unsafe_allow_html=True,
         )
         if st.button("Đăng xuất", key="btn_logout", type="tertiary"):
-            st.session_state.logged_in = False
-            st.session_state.screen = "dashboard"
-            st.session_state.auth_mode = "login"
+            phien.dang_xuat()
             st.rerun()
 
 
@@ -223,12 +226,26 @@ def main() -> None:
     styles.inject()
     b.header_bar("HỆ THỐNG CẢNH BÁO NGUY CƠ HỌC TẬP")
 
+    # Báo lỗi kết nối ngay từ đầu, thành một dòng đọc được — nếu để mặc, lỗi
+    # sẽ bật ra giữa lúc vẽ giao diện dưới dạng vết lỗi dài của SQLAlchemy.
+    try:
+        ket_noi.kiem_tra()
+    except Exception as loi:  # noqa: BLE001 - hiện nguyên văn cho người dùng
+        st.error(f"Không kết nối được cơ sở dữ liệu: {loi}")
+        st.info("Kiểm tra dịch vụ SQL Server đã chạy chưa, và đã chạy "
+                "db/hethongcanhbao.sql để tạo cơ sở dữ liệu chưa.")
+        return
+
     if not st.session_state.logged_in:
         # Màn đăng nhập chiếm trọn bề ngang: không dựng sidebar, đồng thời ẩn
         # khung rỗng Streamlit vẫn chừa sẵn cho nó.
         styles.hide_sidebar()
         auth.render()
         return
+
+    # Đọc lại từ cơ sở dữ liệu ở mỗi lần chạy lại trang, để hai tab trình
+    # duyệt hay hai lần thao tác liên tiếp đều thấy dữ liệu mới nhất.
+    phien.nap_mon()
 
     _sidebar()
 

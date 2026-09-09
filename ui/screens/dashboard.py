@@ -4,6 +4,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+from db import repo
 from ui import blocks as b
 from ui import data as d
 from ui import rules
@@ -88,6 +89,12 @@ def _chart(chuoi: list[dict], scale: int) -> alt.LayerChart:
         strokeWidth=0)
 
 
+def _doi_thang(thang: int) -> None:
+    st.session_state.scale = thang
+    repo.dat_thang_diem(st.session_state.user_id, thang)
+    st.rerun()
+
+
 def render() -> None:
     scale = st.session_state.scale
     st.markdown(_CSS.replace("{active}", f"scale_{scale}"),
@@ -105,12 +112,12 @@ def render() -> None:
         with st.container(horizontal=True, horizontal_alignment="right",
                           vertical_alignment="center", gap="medium"):
             with st.container(horizontal=True, key="scale_group"):
+                # Lưu xuống hồ sơ chứ không chỉ giữ trong phiên: thang điểm là
+                # lựa chọn của người dùng, mở lại lần sau phải còn nguyên.
                 if st.button("DH10", key="scale_10"):
-                    st.session_state.scale = 10
-                    st.rerun()
+                    _doi_thang(10)
                 if st.button("DH4", key="scale_4"):
-                    st.session_state.scale = 4
-                    st.rerun()
+                    _doi_thang(4)
             if st.button("+ Thêm môn học", key="btn_add"):
                 st.session_state.screen = "add"
                 st.rerun()

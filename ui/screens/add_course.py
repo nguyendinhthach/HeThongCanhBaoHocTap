@@ -10,8 +10,10 @@ import html
 
 import streamlit as st
 
+from db import repo
 from ui import blocks as b
 from ui import data as d
+from ui import phien
 from ui import rules
 from ui import tokens as t
 
@@ -189,7 +191,7 @@ def _dong_form() -> None:
 
 
 def _luu() -> None:
-    """Ghi môn đang soạn vào danh sách — sửa tại chỗ hoặc thêm dòng mới."""
+    """Ghi môn đang soạn xuống cơ sở dữ liệu — sửa tại chỗ hoặc thêm mới."""
     rows = [{k: v for k, v in r.items() if k != "uid"} for r in _doc_dong()]
     ma = _chuan_ma(st.session_state.f_code)
     ten = (st.session_state.f_name or "").strip() or "Môn học chưa đặt tên"
@@ -209,14 +211,16 @@ def _luu() -> None:
         "attempt_no": lan,
         "rows": rows,
     }
-    ds = st.session_state.courses
+    uid = st.session_state.user_id
     if st.session_state.editing_id:
-        for i, c in enumerate(ds):
-            if c["id"] == st.session_state.editing_id:
-                ds[i] = {**c, **mon}
-                break
+        repo.cap_nhat_mon(uid, st.session_state.editing_id, mon["code"],
+                          mon["name"], mon["credits"], mon["attempt"],
+                          mon["attempt_no"], mon["rows"])
     else:
-        ds.append({"id": max((c["id"] for c in ds), default=0) + 1, **mon})
+        repo.luu_mon(uid, mon["year"], mon["sem"], mon["code"], mon["name"],
+                     mon["credits"], mon["attempt"], mon["attempt_no"],
+                     mon["rows"])
+    phien.nap_mon()
     _dong_form()
 
 
@@ -276,8 +280,9 @@ def _hop_xac_nhan(mon: dict) -> None:
         st.rerun()
     if c2.button("Xoá môn học", key="xoa_that", type="primary",
                  width="stretch"):
-        st.session_state.courses = [
-            c for c in st.session_state.courses if c["id"] != mon["id"]]
+        # Điểm thành phần tự xoá theo nhờ ON DELETE CASCADE.
+        repo.xoa_mon(st.session_state.user_id, mon["id"])
+        phien.nap_mon()
         if st.session_state.editing_id == mon["id"]:
             _dong_form()
         st.session_state.confirm_id = None
