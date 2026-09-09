@@ -1,3 +1,10 @@
 streamlit>=1.61
 pandas>=2.2
 altair>=5.4
+
+# Cơ sở dữ liệu
+SQLAlchemy>=2.0
+pyodbc>=5.1          # cần "ODBC Driver 17 for SQL Server" cài sẵn trên máy
+
+# Xác thực
+bcrypt>=4.1
