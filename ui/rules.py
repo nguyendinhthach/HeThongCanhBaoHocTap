@@ -19,6 +19,33 @@ _THANG_4 = [
 ]
 _DIEM_LIET = ("E", 0.0)   # dưới 4.0 là trượt, phải học lại
 
+# Xếp loại học lực theo GPA thang 4 (SPEC §9.3) — bảng KHÁC với _THANG_4 ở
+# trên: _THANG_4 áp cho điểm của từng môn và do trường quy định, còn bảng này
+# áp cho GPA (kỳ / năm / tích luỹ) và là khung chung của Bộ: Khoản 5 Điều 10
+# Quy chế đào tạo đại học, Thông tư 08/2021/TT-BGDĐT. Chỉ xếp loại trên thang
+# 4; thang 10 không có khung tương ứng nào đáng tin (xem SPEC §9.3).
+_XEP_LOAI = [
+    (3.6, "Xuất sắc"),
+    (3.2, "Giỏi"),
+    (2.5, "Khá"),
+    (2.0, "Trung bình"),
+    (1.0, "Yếu"),
+]
+_XEP_LOAI_THAP_NHAT = "Kém"
+
+
+def xep_loai(gpa4: float) -> str:
+    """Nhãn học lực của một GPA thang 4, dùng chung cho GPA kỳ và tích luỹ."""
+    for nguong, nhan in _XEP_LOAI:
+        if gpa4 >= nguong:
+            return nhan
+    return _XEP_LOAI_THAP_NHAT
+
+
+def nguong_xep_loai(nhan: str) -> float:
+    """Ngưỡng dưới của một mức xếp loại — để mục tiêu học tập không ghi cứng."""
+    return next(ng for ng, n in _XEP_LOAI if n == nhan)
+
 
 def _lam_tron(x: float, so_le: int = 1) -> float:
     """Làm tròn nửa lên như Math.round của mockup.
@@ -238,6 +265,31 @@ def tom_tat(courses: list[dict]) -> dict:
                      and (diem_mon(c) or 0) < t.GRADE_FAIL),
         "tam_tinh": sum(1 for c in courses if not du_trong_so(c)),
     }
+
+
+def mon_tinh_tich_luy(courses: list[dict]) -> list[dict]:
+    """Mỗi môn giữ đúng một lần học để tính GPA tích luỹ toàn khoá (SPEC §3.5).
+
+    Chỉ xét lần học đã nhập đủ trọng số; cùng một mã môn thì lấy lần điểm
+    cao nhất, bằng điểm thì lấy lần gần nhất. GPA từng kỳ vẫn dùng đúng điểm
+    của lần học trong kỳ đó — hàm này không đụng tới cách tính ấy.
+    """
+    tot_nhat: dict[str, dict] = {}
+    for c in courses:
+        if not du_trong_so(c) or diem_mon(c) is None:
+            continue
+        # Môn cũ chưa có mã thì đành so theo tên.
+        khoa = c.get("code") or c["name"]
+        cu = tot_nhat.get(khoa)
+        if cu is None or (diem_mon(c), c["year"], c["sem"]) >= (
+                diem_mon(cu), cu["year"], cu["sem"]):
+            tot_nhat[khoa] = c
+    return list(tot_nhat.values())
+
+
+def tom_tat_tich_luy(courses: list[dict]) -> dict:
+    """GPA tích luỹ toàn khoá — tom_tat trên tập môn đã lọc một lần học/môn."""
+    return tom_tat(mon_tinh_tich_luy(courses))
 
 
 def gpa_thang(tk: dict, scale: int) -> float:

@@ -152,14 +152,16 @@ TIPS = [
      "detail": "Giúp tập trung vào các môn đang có nguy cơ trượt."},
 ]
 
+# Ngưỡng Giỏi/Khá lấy từ khung xếp loại học lực (rules._XEP_LOAI, SPEC §9.3)
+# để chỉ có một chỗ giữ con số; so với GPA tích luỹ thang 4.
 GOALS = {
     "Đạt loại Giỏi": {
-        "pct": 24, "hint": "GPA ≥ 3.2",
+        "pct": 24, "hint": f'GPA ≥ {rules.nguong_xep_loai("Giỏi"):.1f}',
         "note": "Cần điểm trung bình từ 8.5 trở lên ở 3 môn còn lại — khá khó "
                 "với mức hiện tại.",
     },
     "Đạt loại Khá": {
-        "pct": 61, "hint": "GPA ≥ 2.5",
+        "pct": 61, "hint": f'GPA ≥ {rules.nguong_xep_loai("Khá"):.1f}',
         "note": "Khả thi nếu nâng điểm Trí tuệ nhân tạo lên ≥ 6.5 và giữ các "
                 "môn còn lại.",
     },

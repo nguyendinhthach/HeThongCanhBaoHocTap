@@ -154,9 +154,17 @@ nào trước đó (không chỉ học kỳ đang chọn):
 - **GPA từng học kỳ dùng đúng điểm của lần học trong kỳ đó** — không hồi tố.
   Nhờ vậy biểu đồ xu hướng phản ánh đúng lịch sử thật của sinh viên.
 
-> **Còn để ngỏ:** GPA _tích luỹ toàn khoá_ nên lấy điểm lần học nào (cao
-> nhất / mới nhất) — cần tra quy chế của trường rồi chốt. Chưa ảnh hưởng
-> giai đoạn dựng giao diện vì màn hình hiện chỉ hiển thị GPA theo học kỳ.
+- **GPA tích luỹ toàn khoá: mỗi mã môn chỉ tính một lần học** — lần có điểm
+  tổng kết **cao nhất** trong các lần đã nhập đủ trọng số; bằng điểm thì lấy
+  lần gần nhất. Lần học còn tạm tính không được xét (nếu môn đó có lần trước
+  đã đủ điểm thì vẫn dùng lần trước). Bản ghi trong cơ sở dữ liệu không bị
+  xoá hay ghi đè — chỉ là cách chọn lúc tính.
+
+> **Ghi chú:** quy tắc "điểm cao nhất" chọn theo cách phổ biến ở các trường
+> (học cải thiện lấy điểm cao hơn); chưa đối chiếu với quy chế cụ thể của
+> trường — nếu quy chế nói "lấy lần mới nhất" thì chỉ cần đổi một chỗ trong
+> `rules.mon_tinh_tich_luy`. Tra ở _Quy chế đào tạo tín chỉ_, điều về "học
+> lại / học cải thiện" và "điểm trung bình chung tích luỹ".
 
 ### 3.6 Bảng kết quả dự đoán và lịch sử cảnh báo
 
@@ -234,6 +242,7 @@ theo ngay, nên mỗi bản dự đoán phải sinh **đủ ba dòng** — một
 | Nguy cơ trượt **theo từng môn**                                                        | Chỉ trong học kỳ đang chọn ở sidebar                                                                 | Cột trong bảng "Danh sách môn học", trang Dashboard |
 | Mức nguy cơ **tổng thể** (bị cảnh báo học vụ/thôi học) + Lý do chính + Gợi ý cải thiện | **Toàn bộ lịch sử** các học kỳ đã nhập, không phụ thuộc lựa chọn sidebar                             | Trang "Cảnh báo & Mục tiêu"                         |
 | Biểu đồ "Xu hướng điểm trung bình học kỳ"                                              | **Toàn bộ** các học kỳ đã có dữ liệu (điểm hiện tại theo sidebar được đánh dấu nổi bật trên biểu đồ) | Trang Dashboard                                     |
+| **GPA tích luỹ toàn khoá** (một lần học/môn — xem 3.5)                                 | **Toàn bộ lịch sử**, không phụ thuộc sidebar                                                         | Trang "Cảnh báo & Mục tiêu", khung riêng dưới tiêu đề |
 
 Ở trang "Cảnh báo & Mục tiêu", sidebar **không hiển thị** khối "Kỳ học đang
 xem" (vì trang này không phụ thuộc lựa chọn kỳ).
@@ -243,6 +252,13 @@ xem" (vì trang này không phụ thuộc lựa chọn kỳ).
 - Sinh viên chọn 1 mục tiêu: Đạt loại Giỏi (GPA ≥ 3.2) / Đạt loại Khá (GPA ≥
   2.5) / Qua môn (không nợ, môn < 4.0 theo thang 10 — điều chỉnh đúng theo
   thang điểm thật của trường khi triển khai).
+- Ngưỡng Giỏi/Khá lấy từ khung xếp loại học lực ở mục 9.3, so với **GPA tích
+  luỹ toàn khoá** (thang 4, mục 3.5), không phải GPA của kỳ đang xem. Trang Cảnh báo hiển thị GPA tích luỹ trong một
+  khung riêng ngay dưới tiêu đề (thang 4 làm chính, thang 10 trong ngoặc, kèm
+  số môn/tín chỉ đã tính) để sinh viên thấy mình đang cách ngưỡng bao xa; con
+  số này không đổi theo toggle DH10/DH4 của Dashboard. Dashboard **không**
+  thêm thẻ GPA tích luỹ để giữ nguyên tắc ở mục 6: mọi thẻ trên đó đều đổi
+  theo kỳ đang chọn.
 - Hệ thống trả về % khả năng đạt mục tiêu đó dựa trên nhịp học hiện tại, và
   gợi ý định tính cần cải thiện gì (không bắt buộc phải tính chính xác tuyệt
   đối số điểm cần tăng ở bản đầu tiên — có thể làm ở mức định tính trước).
@@ -288,6 +304,21 @@ DH4  = Σ(điểm DH4  của môn × TC) / Σ TC     ← quy đổi TỪNG MÔN 
 | 2024–2025 HK01 | 18  | 8.19 | 3.50 | 3.00                   |
 | 2024–2025 HK02 | 16  | 7.46 | 2.81 | 3.00                   |
 
+Đối chiếu thêm với **GPA tích luỹ** thật ở ba mốc (14/09/2026). Tổng
+`DH4 × TC` phải là số nguyên vì điểm chữ quy ra 4/3/2/1/0 — cả ba mốc đều
+thoả, xác nhận trường tính đúng cách "quy đổi từng môn rồi mới lấy trung
+bình":
+
+| TC tích luỹ | DH10 | DH4  | Σ(DH4 × TC) | Xếp loại (theo 9.3) |
+| ----------- | ---- | ---- | ----------- | ------------------- |
+| 29          | 6.57 | 2.38 | 69          | Trung bình          |
+| 63          | 7.26 | 2.81 | 177         | Khá                 |
+| 79          | 7.40 | 2.92 | 231         | Khá                 |
+
+> Ba mốc này cũng cho thấy **không suy được DH10 từ DH4 và ngược lại**: cùng
+> DH4 2.92 trên 79 TC thì DH10 có thể rơi bất kỳ đâu trong 6.9–8.3 tuỳ điểm
+> từng môn nằm ở đâu trong dải của bậc chữ. Hai con số phải tính riêng.
+
 ### 9.2 Các trường hợp biên
 
 - Ngưỡng lấy **bằng**: 7.0 là B (không phải C), 8.5 là A, 4.0 là D. Kiểm
@@ -299,6 +330,40 @@ DH4  = Σ(điểm DH4  của môn × TC) / Σ TC     ← quy đổi TỪNG MÔN 
 - Môn **chưa nhập đủ 100% trọng số thành phần** cho ra điểm _tạm tính_ (xem
   §3.4); điểm tạm tính không được dùng để kết luận đỗ/trượt, nên không tính
   vào chỉ số "Môn điểm E".
+
+### 9.3 Xếp loại học lực theo GPA — khác với thang điểm chữ của môn
+
+Hai bảng quy đổi **khác nhau, không được lẫn**:
+
+| Bảng                       | Áp cho                        | Đầu vào              | Đầu ra                   | Ai quy định                              |
+| -------------------------- | ----------------------------- | -------------------- | ------------------------ | ---------------------------------------- |
+| Thang điểm chữ (mục 9 trên) | **từng môn**                  | điểm môn DH10        | A/B/C/D/E và 4/3/2/1/0   | trường (mốc 8.5 / 7.0 / 5.5 / 4.0)       |
+| Xếp loại học lực (mục này) | **GPA** kỳ / năm / tích luỹ   | GPA **DH4**          | Xuất sắc … Kém           | Bộ GD&ĐT — Thông tư 08/2021, Điều 10 §5  |
+
+Khung xếp loại theo DH4 (Khoản 5 Điều 10 Quy chế đào tạo trình độ đại học,
+ban hành kèm Thông tư 08/2021/TT-BGDĐT; áp dụng cho cả điểm trung bình học
+kỳ, năm học và tích luỹ; cũng là căn cứ xếp loại bằng tốt nghiệp):
+
+| Xếp loại   | DH4            |
+| ---------- | -------------- |
+| Xuất sắc   | 3.6 – 4.0      |
+| Giỏi       | 3.2 – cận 3.6  |
+| Khá        | 2.5 – cận 3.2  |
+| Trung bình | 2.0 – cận 2.5  |
+| Yếu        | 1.0 – cận 2.0  |
+| Kém        | dưới 1.0       |
+
+- Xếp loại tính **duy nhất trên DH4**. DH10 chỉ hiển thị kèm để tham khảo,
+  **không** gắn nhãn xếp loại riêng theo DH10.
+- Bảng "thang 10 tương ứng" (Giỏi 8.0–9.0, Khá 7.0–8.0…) lưu truyền trên
+  mạng **không đưa vào hệ thống**: nó chỉ đúng khi mốc điểm chữ của trường là
+  8.0/7.0/5.0/4.0. Với mốc 8.5/7.0/5.5/4.0 của trường mình, một sinh viên toàn
+  môn 8.0–8.4 có DH10 ≈ 8.2 (bảng đó nói Giỏi) nhưng mỗi môn chỉ là B = 3.0
+  → DH4 3.0 → Khá. Hai bảng mâu thuẫn ngay ở vùng điểm phổ biến.
+- Một hàm `xep_loai(gpa4)` dùng chung cho mọi loại GPA; ngưỡng Giỏi/Khá của
+  mục tiêu học tập (mục 7) lấy từ cùng bảng này, không ghi cứng ở chỗ khác.
+- Hiển thị: nhãn xếp loại đặt trong khung GPA tích luỹ ở trang Cảnh báo
+  (mục 6, 7). Thẻ GPA học kỳ ở Dashboard chưa gắn nhãn — quyết định sau.
 
 ## 10. Công nghệ
 

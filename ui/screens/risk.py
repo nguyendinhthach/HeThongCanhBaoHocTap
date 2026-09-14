@@ -106,12 +106,61 @@ def _the_goi_y() -> None:
     )
 
 
+def _so_vn(x: float) -> str:
+    """2.24 -> "2,24": dấu phẩy thập phân như học bạ."""
+    return f"{x:.2f}".replace(".", ",")
+
+
+def _khung_gpa_tich_luy() -> None:
+    """Khung GPA tích luỹ toàn khoá, đặt ngay dưới tiêu đề trang.
+
+    Đây là con số toàn lịch sử (SPEC §6) và là thứ ngưỡng Giỏi/Khá ở mục
+    tiêu so vào (SPEC §7), nên phải nổi bật chứ không nằm lẫn trong khối
+    mục tiêu. Thang 4 làm chính vì ngưỡng viết theo thang 4, thang 10 kèm
+    trong ngoặc; không đổi theo toggle DH10/DH4 của Dashboard.
+    """
+    mon = rules.mon_tinh_tich_luy(st.session_state.courses)
+    if mon:
+        tk = rules.tom_tat(mon)
+        # Xếp loại chỉ theo thang 4 (SPEC §9.3); thang 10 hiện kèm để tham
+        # khảo, không gắn nhãn riêng.
+        so = (f'{_so_vn(tk["gpa4"])}<span style="font-size:20px;'
+              f'font-weight:600;color:{t.MUTED}">/4,0</span>'
+              f'<span style="font-size:15px;font-weight:600;color:{t.TEXT};'
+              f'margin-left:12px;padding:4px 12px;border-radius:'
+              f'{t.RADIUS_PILL}px;background:{t.CHIP_BG};vertical-align:'
+              f'middle">{rules.xep_loai(tk["gpa4"])}</span>'
+              f'<span style="font-size:15px;font-weight:500;color:{t.MUTED};'
+              f'margin-left:10px">(DH10: {_so_vn(tk["gpa10"])})</span>')
+        phu = (f'{len(mon)} môn · {tk["tin_chi"]} tín chỉ đã hoàn tất · '
+               "môn học lại/cải thiện lấy lần điểm cao nhất")
+    else:
+        so = "—"
+        phu = "Chưa có môn nào nhập đủ điểm thành phần"
+    st.markdown(
+        f'<div style="border:1px solid {t.BORDER};border-radius:'
+        f'{t.RADIUS_CARD}px;background:{t.PANEL_BG};padding:18px 24px;'
+        f'display:flex;align-items:center;justify-content:space-between;'
+        f'gap:24px;flex-wrap:wrap">'
+        f'<div><div style="font-size:14px;font-weight:600;color:{t.TEXT}">'
+        f'GPA tích luỹ (toàn khoá)</div>'
+        f'<div style="font-size:14px;color:{t.MUTED};margin-top:4px">{phu}'
+        f'</div></div>'
+        f'<div style="font-size:34px;font-weight:700;color:{t.PRIMARY};'
+        f'letter-spacing:-0.02em;line-height:1;white-space:nowrap">{so}'
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def render() -> None:
     khoa = st.session_state.goal
     st.markdown(_CSS.replace("{active}", f"goal_{list(d.GOALS).index(khoa)}"),
                 unsafe_allow_html=True)
 
     b.page_title("Cảnh báo & Mục tiêu học tập", d.RISK_UPDATED)
+    b.spacer(22)
+    _khung_gpa_tich_luy()
     b.spacer(26)
 
     # Lưới 1.15fr / 1fr như mockup
