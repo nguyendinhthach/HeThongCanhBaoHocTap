@@ -229,7 +229,9 @@ def _gom_mon(rows) -> list[dict]:
             mon["rows"].append({
                 "loai": r.loai_tp,
                 "trong_so": _so(r.trong_so_phan_tram),
-                "diem": _so(r.diem),
+                # Điểm luôn là float, kể cả 7.00: ô nhập điểm trên form dùng
+                # min/max/step float, Streamlit từ chối trộn int với float.
+                "diem": None if r.diem is None else float(r.diem),
             })
     return list(theo_id.values())
 

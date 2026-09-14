@@ -114,8 +114,13 @@ def _nap_form(mon: dict | None) -> None:
     for khoa in ("f_code", "f_name", "f_credits", "f_attempt"):
         st.session_state.pop(khoa, None)
     if mon:
-        st.session_state.f_code = mon.get("code", "")
-        st.session_state.f_name = mon["name"]
+        # Lúc sửa, mã và tên chỉ hiện chỉ đọc chứ không dựng text_input, nên
+        # không ghi vào f_code/f_name: hai key đó từng gắn với text_input (ở
+        # chế độ thêm) nên Streamlit vẫn coi là key widget và sẽ dọn giá trị
+        # ngay cuối lượt chạy vì widget không có mặt. Dùng key riêng chưa bao
+        # giờ gắn widget.
+        st.session_state.sua_code = mon.get("code", "")
+        st.session_state.sua_name = mon["name"]
         st.session_state.f_credits = mon["credits"]
         st.session_state.f_attempt = mon["attempt"]
         # Giữ nguyên số lần học đã lưu: lúc sửa không đếm lại được vì chính
@@ -190,11 +195,19 @@ def _dong_form() -> None:
     st.session_state.editing_id = None
 
 
+def _ma_ten() -> tuple[str, str]:
+    """Mã và tên môn đang soạn: lúc sửa lấy bản đã chốt, lúc thêm lấy từ ô nhập."""
+    if st.session_state.editing_id:
+        return st.session_state.sua_code, st.session_state.sua_name
+    return st.session_state.f_code, st.session_state.f_name
+
+
 def _luu() -> None:
     """Ghi môn đang soạn xuống cơ sở dữ liệu — sửa tại chỗ hoặc thêm mới."""
     rows = [{k: v for k, v in r.items() if k != "uid"} for r in _doc_dong()]
-    ma = _chuan_ma(st.session_state.f_code)
-    ten = (st.session_state.f_name or "").strip() or "Môn học chưa đặt tên"
+    ma_tho, ten_tho = _ma_ten()
+    ma = _chuan_ma(ma_tho)
+    ten = (ten_tho or "").strip() or "Môn học chưa đặt tên"
     # Đếm lần học theo MÃ, không theo tên.
     lan = (st.session_state.f_attempt_no
            if st.session_state.editing_id else _so_lan_hoc(ma))
@@ -322,10 +335,11 @@ def _form() -> None:
         if dang_sua:
             # Sửa thì khoá mã và tên: đổi mã tức là trỏ sang môn khác, còn
             # đổi tên sẽ làm một mã mang hai tên.
+            ma_sua, ten_sua = _ma_ten()
             with c1:
-                _o_chi_doc("Mã môn học", _esc(st.session_state.f_code))
+                _o_chi_doc("Mã môn học", _esc(ma_sua))
             with c2:
-                _o_chi_doc("Tên môn học", _esc(st.session_state.f_name))
+                _o_chi_doc("Tên môn học", _esc(ten_sua))
         else:
             # Dấu * báo bắt buộc; nút Lưu bị khoá khi còn trống nên không
             # cần bôi đỏ ngay lúc form vừa mở.
@@ -454,7 +468,7 @@ def _form() -> None:
                               gap="medium"):
                 # Mã là khoá nhận diện môn: thiếu mã thì không dò được lần
                 # học, nên chặn ngay ở nút Lưu.
-                thieu_ma = not _chuan_ma(st.session_state.f_code)
+                thieu_ma = not _chuan_ma(_ma_ten()[0])
                 if st.button(
                         "Cập nhật môn học" if dang_sua else "Lưu môn học",
                         type="primary", key="btn_save", disabled=thieu_ma,
