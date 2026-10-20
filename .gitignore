@@ -200,3 +200,6 @@ docs/mockups/
 
 # Tài liệu Word (đề cương, biên bản) — chỉ tham chiếu cục bộ
 *.docx
+
+# Dữ liệu khảo sát và dữ liệu mô phỏng (sinh lại bằng ml/mo_phong.py)
+data/
