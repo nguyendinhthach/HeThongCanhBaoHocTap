@@ -12,8 +12,9 @@ lượt từng học kỳ chính:
 và dừng khi sinh viên tốt nghiệp, bị buộc thôi học hoặc tới học kỳ hiện tại.
 Cố định seed nên chạy lại ra đúng dữ liệu cũ.
 
-File xuất có 2 sheet:
+File xuất có 4 sheet:
 - sheet đầu: giống hệt file Google Form, đọc bằng doc_form.py như dữ liệu thật;
+- "hoc_ky", "mon": cùng dữ liệu đó dạng dọc, chỉ để mở Excel xem cho dễ;
 - "nhan_that": nhãn tính từ đầy đủ thông tin mô phỏng (kể cả số TC rớt trong
   kỳ mà form không hỏi), dùng để đối chiếu với nhãn gán từ form.
 
@@ -47,9 +48,29 @@ TI_LE_NAM_NHAP_HOC = [0.05, 0.10, 0.20, 0.25, 0.20, 0.20]
 # mỗi sinh viên lấy ngẫu nhiên trong khoảng. Con số này chỉ quyết định lúc hết
 # môn mới để đăng ký và lúc tốt nghiệp, không dùng trong luật gán nhãn.
 HE_DAO_TAO = {"Cử nhân (4 năm)": (8, 125, 140), "Kỹ sư (4,5 năm)": (9, 150, 160)}
-TI_LE_HE_DAO_TAO = [0.8, 0.2]
-CAC_NGANH = ["Công nghệ thông tin", "Tài chính - Ngân hàng", "Kế toán", "Quản trị kinh doanh",
-             "Luật", "Ngôn ngữ Anh", "Sinh học", "Kỹ thuật hạt nhân"]
+
+# 41 ngành đại học chính quy của Trường ĐH Đà Lạt, theo trang chính thức
+# https://dlu.edu.vn/cac-nganh-dao-tao-chinh-quy/ (tra ngày 21/10/2026);
+# mỗi sinh viên chọn ngẫu nhiên đều nhau.
+CAC_NGANH = [
+    "Sư phạm Toán học", "Sư phạm Vật lý", "Sư phạm Hóa học", "Sư phạm Sinh học",
+    "Sư phạm Ngữ văn", "Sư phạm Lịch sử", "Sư phạm Tiếng Anh", "Sư phạm Tin học",
+    "Giáo dục tiểu học", "Toán học", "Khoa học dữ liệu", "Công nghệ thông tin", "Vật lý học",
+    "Công nghệ kỹ thuật điện tử - viễn thông", "Kỹ thuật hạt nhân",
+    "Công nghệ kỹ thuật điều khiển và tự động hóa", "Hóa học", "Hóa dược",
+    "Công nghệ kỹ thuật môi trường", "Sinh học", "Công nghệ sinh học", "Quản trị kinh doanh",
+    "Kế toán", "Tài chính - Ngân hàng", "Công nghệ thực phẩm", "Nông học",
+    "Công nghệ sau thu hoạch", "Luật", "Luật hình sự và tố tụng hình sự",
+    "Quản trị dịch vụ du lịch và lữ hành", "Việt Nam học", "Đông phương học", "Quốc tế học",
+    "Văn học", "Văn hóa du lịch", "Trung Quốc học", "Lịch sử", "Công tác xã hội",
+    "Dân số và phát triển", "Xã hội học", "Ngôn ngữ Anh",
+]
+# Các ngành cấp bằng kỹ sư (cùng trang trên, cột "Tên gọi văn bằng"); còn lại cử nhân
+NGANH_KY_SU = {
+    "Khoa học dữ liệu", "Công nghệ thông tin", "Công nghệ kỹ thuật điện tử - viễn thông",
+    "Kỹ thuật hạt nhân", "Công nghệ kỹ thuật điều khiển và tự động hóa",
+    "Công nghệ thực phẩm", "Nông học", "Công nghệ sau thu hoạch",
+}
 
 # --- Đăng ký môn -------------------------------------------------------------
 SO_TC_MON = [2, 3, 3, 3, 4]
@@ -153,10 +174,10 @@ class SinhVienAo:
     def __init__(self, rng):
         self.rng = rng
         self.nam_nhap_hoc = int(rng.choice(CAC_NAM_NHAP_HOC, p=TI_LE_NAM_NHAP_HOC))
-        self.he = str(rng.choice(list(HE_DAO_TAO), p=TI_LE_HE_DAO_TAO))
+        self.nganh = str(rng.choice(CAC_NGANH))
+        self.he = "Kỹ sư (4,5 năm)" if self.nganh in NGANH_KY_SU else "Cử nhân (4 năm)"
         self.so_hk_chuan, tc_it_nhat, tc_nhieu_nhat = HE_DAO_TAO[self.he]
         self.tong_tc = int(rng.integers(tc_it_nhat, tc_nhieu_nhat + 1))
-        self.nganh = str(rng.choice(CAC_NGANH))
 
         # Năng lực ẩn; sinh viên yếu hơn có xu hướng vắng nhiều hơn
         self.nang_luc = rng.normal()
@@ -351,9 +372,20 @@ def mo_phong(so_sv, seed):
 
 
 def ghi_xlsx(bang_form, bang_nhan, duong_dan):
+    """Ghi sheet form (đọc bằng doc_form.py) + các sheet phụ để xem bằng mắt.
+
+    Sheet "hoc_ky" và "mon" là bảng dọc (1 dòng = 1 SV × 1 học kỳ / 1 môn),
+    tách từ chính sheet form nên luôn khớp với nó; code không đọc hai sheet này.
+    """
+    co_ma_sv = bang_form.set_axis([f"SV{i + 1}" for i in range(len(bang_form))])
+    bang_hoc_ky = form.tach_hoc_ky(co_ma_sv)
+    bang_mon = form.tach_mon(co_ma_sv, bang_hoc_ky)
+
     os.makedirs(os.path.dirname(os.path.abspath(duong_dan)), exist_ok=True)
     with pd.ExcelWriter(duong_dan) as ghi:
         bang_form.to_excel(ghi, sheet_name="Câu trả lời biểu mẫu 1", index=False)
+        bang_hoc_ky.to_excel(ghi, sheet_name="hoc_ky", index=False)
+        bang_mon.to_excel(ghi, sheet_name="mon", index=False)
         bang_nhan.to_excel(ghi, sheet_name="nhan_that", index=False)
 
 

@@ -31,7 +31,7 @@ def du_lieu_mo_phong():
         duong_dan = os.path.join(tempfile.mkdtemp(), "mo_phong.xlsx")
         mo_phong.ghi_xlsx(bang_form, bang_nhan, duong_dan)
         sinh_vien, bang_hoc_ky, bang_mon = form.doc_form(duong_dan)
-        _cache.update(bang_form=bang_form, bang_nhan=bang_nhan, sinh_vien=sinh_vien,
+        _cache.update(duong_dan=duong_dan, bang_form=bang_form, bang_nhan=bang_nhan, sinh_vien=sinh_vien,
                       bang_hoc_ky=bang_hoc_ky, bang_mon=bang_mon)
     return _cache
 
@@ -112,6 +112,24 @@ def test_mo_phong_dung_dinh_dang_form():
     d = du_lieu_mo_phong()
     assert list(d["bang_form"].columns) == form.cac_cot_form()
     assert len(d["sinh_vien"]) == SO_SV
+
+
+def test_nganh_va_he_dao_tao():
+    sinh_vien = du_lieu_mo_phong()["sinh_vien"]
+    assert set(sinh_vien["nganh"]) <= set(mo_phong.CAC_NGANH)
+    assert sinh_vien["nganh"].nunique() > 30
+    assert len(mo_phong.CAC_NGANH) == 41 and mo_phong.NGANH_KY_SU <= set(mo_phong.CAC_NGANH)
+    # Hệ đào tạo đi theo ngành: ngành kỹ sư thì toàn bộ là kỹ sư
+    ky_su = sinh_vien["he_dao_tao"] == "Kỹ sư (4,5 năm)"
+    assert ky_su.any()
+    assert (ky_su == sinh_vien["nganh"].isin(mo_phong.NGANH_KY_SU)).all()
+
+
+def test_sheet_doc_khop_sheet_form():
+    # Sheet "hoc_ky" chỉ để xem, nhưng phải đúng bằng bảng doc_form tách ra
+    d = du_lieu_mo_phong()
+    hoc_ky = pd.read_excel(d["duong_dan"], sheet_name="hoc_ky")
+    pd.testing.assert_frame_equal(hoc_ky, d["bang_hoc_ky"], check_dtype=False)
 
 
 def test_moi_sv_mo_phong_deu_hop_le():
