@@ -33,6 +33,7 @@ Quy ước chung:
 """
 
 import os
+from functools import lru_cache
 
 import pandas as pd
 
@@ -70,9 +71,17 @@ COT_MON_CO_THE_THIEU = ["diem_gk", "ti_trong_gk", "vang_lt", "vang_th", "truoc_d
 def doc_du_lieu(duong_dan=None):
     """(bảng học kỳ, bảng môn) đã gán nhãn, chỉ gồm sinh viên hợp lệ.
 
-    Bảng học kỳ có thêm cột he_dao_tao, sắp theo (ma_sv, hoc_ky).
+    Bảng học kỳ có thêm cột he_dao_tao, sắp theo (ma_sv, hoc_ky). Mỗi file chỉ
+    đọc một lần (đọc xlsx chậm); file đổi trên đĩa thì đọc lại.
     """
-    sinh_vien, bang_hoc_ky, bang_mon = form.doc_form(duong_dan or DUONG_DAN_MAC_DINH)
+    duong_dan = os.path.abspath(duong_dan or DUONG_DAN_MAC_DINH)
+    bang, mon = _doc_du_lieu(duong_dan, os.path.getmtime(duong_dan))
+    return bang.copy(), mon.copy()
+
+
+@lru_cache(maxsize=4)
+def _doc_du_lieu(duong_dan, _thoi_diem_sua):
+    sinh_vien, bang_hoc_ky, bang_mon = form.doc_form(duong_dan)
     hop_le = sinh_vien.index[sinh_vien["hop_le"]]
     bang = gan_nhan_hoc_ky(bang_hoc_ky[bang_hoc_ky["ma_sv"].isin(hop_le)])
     # gan_nhan_hoc_ky đã sắp theo (ma_sv, hoc_ky); merge "inner" giữ thứ tự đó
