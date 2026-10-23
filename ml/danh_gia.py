@@ -11,14 +11,19 @@
 - Baseline là luật đơn giản (LuatDonGian); mô hình phải vượt baseline mới có ý nghĩa.
 
 Mỗi file phương pháp chỉ cần một hàm tao_mo_hinh() trả về mô hình MỚI, chưa
-huấn luyện, có fit(X, y) và predict_proba(X) như scikit-learn.
+huấn luyện, có fit(X, y) và predict_proba(X) như scikit-learn, rồi gọi
+chay_thu(tao_mo_hinh, "Tên phương pháp") ở phần __main__ (xem decision_tree.py).
 """
+
+import sys
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (average_precision_score, f1_score, precision_score,
                              recall_score, roc_auc_score)
 from sklearn.model_selection import StratifiedGroupKFold
+
+import dac_trung
 
 
 SO_FOLD = 5
@@ -112,3 +117,35 @@ def tao_baseline_tu(ham_diem):
 def tao_baseline(muc_tieu):
     """Hàm tạo mô hình baseline của một mục tiêu."""
     return tao_baseline_tu(BASELINE[muc_tieu])
+
+
+def chay_thu(tao_mo_hinh, ten_phuong_phap, duong_dan=None):
+    """Đánh giá chéo một phương pháp trên 3 mục tiêu, in bảng so với baseline luật.
+
+    Dùng chung cho mọi file phương pháp: chỉ cần truyền tao_mo_hinh của file đó.
+    Với "canh_bao" in thêm dòng thôi học suy từ nguy cơ cảnh báo (cách chính
+    cho mục tiêu buộc thôi học, xem dac_trung.nguy_co_thoi_hoc).
+    """
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    pd.set_option("display.width", 200)
+    print(f"{ten_phuong_phap}, {SO_FOLD}-fold theo sinh viên; "
+          "số liệu: trung bình ± độ lệch chuẩn qua các fold")
+
+    for muc_tieu in dac_trung.MUC_TIEU:
+        X, y, nhom = dac_trung.tao_du_lieu(muc_tieu, duong_dan)
+        print(f"\n=== {muc_tieu}: {len(X)} dòng, {int(y.sum())} ca dương ({y.mean():.1%}), "
+              f"{nhom.nunique()} sinh viên ===")
+
+        dong = {}
+        for ten, tao in [("Baseline luật", tao_baseline(muc_tieu)),
+                         (ten_phuong_phap, tao_mo_hinh)]:
+            bang, xac_suat = danh_gia_cheo(tao, X, y, nhom)
+            dong[ten] = tom_tat(bang)
+            if muc_tieu == "canh_bao":
+                _, y_thoi_hoc, _ = dac_trung.tao_du_lieu("thoi_hoc", duong_dan)
+                nguy_co = dac_trung.nguy_co_thoi_hoc(xac_suat, X["so_lan_canh_bao_lien_tiep"])
+                suy_ra = tinh_chi_so(y_thoi_hoc, nguy_co)
+                dong[f"{ten} → thôi học (suy từ cảnh báo)"] = {
+                    k: f"{v:.3f}" for k, v in suy_ra.items()}
+        print(pd.DataFrame(dong).T.to_string())
