@@ -24,7 +24,8 @@ Ba mục tiêu (MUC_TIEU):
 Quy ước chung:
 - Loại sinh viên không hợp lệ (doc_form: hop_le = False).
 - Ô trống giữ là NaN, kèm cột "<tên>_thieu" (0/1); mô hình nào không nhận
-  NaN (SVM, Random Forest) thì tự điền trong pipeline của mình.
+  NaN (như SVM) thì tự điền trong pipeline của mình. Random Forest cần
+  scikit-learn >= 1.4; LightGBM nhận NaN trực tiếp.
 - Chưa chuẩn hoá: SVM tự chuẩn hoá trong pipeline để không rò dữ liệu test.
 - Không dùng ngành (dữ liệu mô phỏng chọn ngành ngẫu nhiên, không mang tín
   hiệu) và tạm không dùng học kỳ hè (có thể chưa biết lúc dự đoán).
