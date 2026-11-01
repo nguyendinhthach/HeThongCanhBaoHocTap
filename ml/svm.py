@@ -29,14 +29,20 @@ from danh_gia import SEED, chay_thu
 THAM_SO = {"kernel": "rbf", "C": 1.0, "gamma": "scale", "class_weight": "balanced",
            "random_state": SEED}
 
+# C: phạt lỗi phân loại (lớn = bám dữ liệu train hơn); gamma: độ "cong" của
+# mặt phân cách rbf ("scale" = 1 / (số đặc trưng × phương sai))
+LUOI_THAM_SO = {"C": [0.3, 1, 3], "gamma": ["scale", 0.01]}
 
-def tao_mo_hinh():
+
+def tao_mo_hinh(**tham_so):
+    """Tham số ghi đè áp vào SVC (bước cuối của pipeline)."""
     return make_pipeline(
         SimpleImputer(strategy="median", keep_empty_features=True),
         StandardScaler(),
-        CalibratedClassifierCV(SVC(**THAM_SO), method="sigmoid", ensemble=False),
+        CalibratedClassifierCV(SVC(**{**THAM_SO, **tham_so}), method="sigmoid",
+                               cv=3, ensemble=False),
     )
 
 
 if __name__ == "__main__":
-    chay_thu(tao_mo_hinh, "SVM")
+    chay_thu(tao_mo_hinh, "SVM", LUOI_THAM_SO)
