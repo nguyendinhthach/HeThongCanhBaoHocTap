@@ -27,9 +27,42 @@ def test_tinh_chi_so_tinh_tay():
     kq = danh_gia.tinh_chi_so(y, xac_suat, nguong=0.5)
     # Ngưỡng 0.5: đoán dương 2 dòng (0.9 đúng, 0.6 sai) -> P = 1/2, R = 1/2
     assert np.isclose(kq["precision"], 0.5) and np.isclose(kq["recall"], 0.5)
-    assert np.isclose(kq["f1"], 0.5)
+    assert np.isclose(kq["f1"], 0.5) and np.isclose(kq["f2"], 0.5)
+    assert kq["nguong"] == 0.5
     # Xếp hạng: 0.9 (1) > 0.6 (0) > 0.4 (1) -> AP = (1/1 + 2/3) / 2
     assert np.isclose(kq["pr_auc"], (1 + 2 / 3) / 2)
+
+
+def test_chon_nguong_f2():
+    # 2 ca dương có điểm 0.9 và 0.4, xen giữa là 1 ca âm 0.6
+    y = [1, 1, 0, 0, 0]
+    xac_suat = [0.9, 0.4, 0.6, 0.2, 0.1]
+    # Ngưỡng 0.4 bắt đủ 2 ca (P = 2/3, R = 1, F2 = 0.909) tốt hơn 0.9 (P = 1, R = 1/2, F2 = 0.556)
+    assert danh_gia.chon_nguong(y, xac_suat) == 0.4
+    # F1 coi precision nặng ngang recall nên vẫn chọn 0.4 ở đây (F1 0.8 > 0.667)
+    assert danh_gia.chon_nguong(y, xac_suat, beta=1) == 0.4
+
+
+class MoHinhGia:
+    """Mô hình giả: 'tot=True' trả đúng cột x làm điểm, 'tot=False' trả điểm ngẫu nhiên."""
+
+    def __init__(self, tot=True):
+        self.tot = tot
+
+    def fit(self, X, y):
+        return self
+
+    def predict_proba(self, X):
+        diem = X["x"].rank(pct=True).to_numpy() if self.tot else \
+            np.random.default_rng(0).random(len(X))
+        return np.column_stack([1 - diem, diem])
+
+
+def test_chon_cau_hinh_lay_cau_hinh_tot():
+    X, y, nhom = du_lieu_gia()
+    cau_hinh, nguong = danh_gia.chon_cau_hinh(MoHinhGia, {"tot": [False, True]}, X, y, nhom)
+    assert cau_hinh == {"tot": True}
+    assert 0 < nguong <= 1
 
 
 def test_chia_fold_khong_tach_sinh_vien():
@@ -41,18 +74,26 @@ def test_chia_fold_khong_tach_sinh_vien():
 
 def test_danh_gia_cheo_moi_dong_du_doan_mot_lan():
     X, y, nhom = du_lieu_gia()
-    bang, xac_suat = danh_gia.danh_gia_cheo(
+    bang, xac_suat, nguong = danh_gia.danh_gia_cheo(
         lambda: DummyClassifier(strategy="prior"), X, y, nhom)
-    assert len(bang) == danh_gia.SO_FOLD and list(bang.columns) == danh_gia.CAC_CHI_SO
+    assert len(bang) == danh_gia.SO_FOLD
+    assert list(bang.columns) == [*danh_gia.CAC_CHI_SO, "cau_hinh"]
     assert xac_suat.notna().all() and xac_suat.index.equals(X.index)
+    assert nguong.notna().all()
     # Mô hình đoán hằng số thì không xếp hạng được: ROC-AUC = 0.5
     assert np.allclose(bang["roc_auc"], 0.5)
 
 
+def test_danh_gia_cheo_chon_cau_hinh_moi_fold():
+    X, y, nhom = du_lieu_gia()
+    bang, _, _ = danh_gia.danh_gia_cheo(MoHinhGia, X, y, nhom, luoi={"tot": [False, True]})
+    assert (bang["cau_hinh"] == "{'tot': True}").all()
+
+
 def test_cung_seed_cung_ket_qua():
     X, y, nhom = du_lieu_gia()
-    a, _ = danh_gia.danh_gia_cheo(danh_gia.tao_baseline_tu(lambda X: X["x"] > 1), X, y, nhom)
-    b, _ = danh_gia.danh_gia_cheo(danh_gia.tao_baseline_tu(lambda X: X["x"] > 1), X, y, nhom)
+    a, _, _ = danh_gia.danh_gia_cheo(danh_gia.tao_baseline_tu(lambda X: X["x"] > 1), X, y, nhom)
+    b, _, _ = danh_gia.danh_gia_cheo(danh_gia.tao_baseline_tu(lambda X: X["x"] > 1), X, y, nhom)
     pd.testing.assert_frame_equal(a, b)
 
 

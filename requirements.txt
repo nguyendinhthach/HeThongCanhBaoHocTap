@@ -4,6 +4,8 @@ altair>=5.4
 openpyxl>=3.1
 scikit-learn>=1.4
 lightgbm>=4.0
+xgboost>=2.0
+matplotlib>=3.8
 
 # Cơ sở dữ liệu
 SQLAlchemy>=2.0

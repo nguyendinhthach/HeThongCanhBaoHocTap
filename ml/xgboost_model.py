@@ -14,9 +14,14 @@ from xgboost import XGBClassifier
 from danh_gia import SEED, chay_thu
 
 
+# n_jobs=1: danh_gia.py đã chạy song song nhiều mô hình cùng lúc, để mỗi mô
+# hình cũng dùng mọi nhân CPU thì các tiến trình tranh nhau và chậm hơn
 THAM_SO = {"n_estimators": 300, "max_depth": 4, "learning_rate": 0.05,
            "subsample": 0.8, "colsample_bytree": 0.8, "eval_metric": "aucpr",
-           "random_state": SEED, "n_jobs": -1}
+           "random_state": SEED, "n_jobs": 1}
+
+# Độ sâu mỗi cây và tốc độ học (nhỏ = mỗi cây sửa ít, ổn định hơn)
+LUOI_THAM_SO = {"max_depth": [2, 4, 6], "learning_rate": [0.05, 0.1]}
 
 
 class XGBCanBang(XGBClassifier):
@@ -28,9 +33,9 @@ class XGBCanBang(XGBClassifier):
         return super().fit(X, y, **kwargs)
 
 
-def tao_mo_hinh():
-    return XGBCanBang(**THAM_SO)
+def tao_mo_hinh(**tham_so):
+    return XGBCanBang(**{**THAM_SO, **tham_so})
 
 
 if __name__ == "__main__":
-    chay_thu(tao_mo_hinh, "XGBoost")
+    chay_thu(tao_mo_hinh, "XGBoost", LUOI_THAM_SO)
