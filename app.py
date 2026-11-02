@@ -1,8 +1,8 @@
 """Hệ thống cảnh báo sớm nguy cơ học tập — giao diện Streamlit.
 
-Môn học, điểm và hồ sơ người dùng đọc từ SQL Server qua db/repo.py. Riêng
-mức nguy cơ, lý do và gợi ý cải thiện vẫn là số liệu tĩnh trong ui/data.py vì
-chưa gắn mô hình học máy.
+Môn học, điểm và hồ sơ người dùng đọc từ SQL Server qua db/repo.py. Mức nguy
+cơ được suy luận trực tiếp từ lịch sử môn học khi hiển thị và không lưu vào
+cơ sở dữ liệu.
 
 Chạy:  streamlit run app.py
 """

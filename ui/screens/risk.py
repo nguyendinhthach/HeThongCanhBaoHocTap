@@ -1,5 +1,7 @@
 """Cảnh báo & Mục tiêu học tập — dùng toàn bộ lịch sử, không phụ thuộc sidebar."""
 
+import html
+
 import streamlit as st
 
 from db import repo
@@ -42,15 +44,20 @@ _CSS = f"""
 """
 
 
-def _the_nguy_co() -> None:
-    kieu = t.RISK_STYLES[d.RISK_LABEL]
+def _the_nguy_co(du_doan: dict) -> None:
+    muc_nguy_co = du_doan["muc_nguy_co"]
+    ty_le = float(du_doan["ty_le"])
+    cac_ly_do = du_doan["ly_do"]
+
+    kieu = t.RISK_STYLES[muc_nguy_co]
     ly_do = "".join(
         f'<div style="display:flex;gap:10px;align-items:flex-start">'
         f'<div style="width:6px;height:6px;border-radius:50%;'
         f'background:{t.MUTED};margin-top:8px;flex:0 0 6px"></div>'
-        f'<div style="font-size:15px;color:{t.TEXT};line-height:1.5">{r}</div>'
+        f'<div style="font-size:15px;color:{t.TEXT};line-height:1.5">'
+        f'{html.escape(str(r))}</div>'
         f"</div>"
-        for r in d.REASONS
+        for r in cac_ly_do
     )
     st.markdown(
         f'<div style="border:1px solid {kieu["border"]};border-radius:'
@@ -63,15 +70,15 @@ def _the_nguy_co() -> None:
         f"Mức nguy cơ hiện tại</span>"
         f'<span style="font-size:13px;font-weight:600;padding:4px 12px;'
         f'border-radius:{t.RADIUS_PILL}px;background:{kieu["dot"]};'
-        f'color:#fff">{d.RISK_LABEL}</span></div>'
+        f'color:#fff">{html.escape(muc_nguy_co)}</span></div>'
 
         f'<div style="display:flex;align-items:flex-end;gap:12px">'
         f'<div class="mk-bignum" style="color:{kieu["dot"]}">'
-        f"{d.RISK_PCT}%</div>"
+        f"{ty_le:g}%</div>"
         f'<div style="font-size:14px;color:{t.MUTED};padding-bottom:8px">'
-        f"xác suất bị cảnh báo học vụ<br/>trong học kỳ tới</div></div>"
+        f"xác suất bị cảnh báo học vụ<br/>ở học kỳ kế tiếp</div></div>"
 
-        f'{b.bar(d.RISK_PCT, kieu["dot"])}'
+        f'{b.bar(ty_le, kieu["dot"])}'
 
         f'<div style="display:flex;flex-direction:column;gap:10px">'
         f'<div style="font-size:15px;font-weight:600;color:{t.TEXT}">'
@@ -81,7 +88,46 @@ def _the_nguy_co() -> None:
     )
 
 
-def _the_goi_y() -> None:
+def _the_goi_y(du_doan: dict | None) -> None:
+    if du_doan is None:
+        goi_y = [
+            ("Nhập đủ điểm thành phần",
+             "Mô hình chỉ dùng học kỳ có đủ điểm để tạo dự đoán."),
+            ("Kiểm tra lịch sử môn học",
+             "Rà soát mã môn, tín chỉ và học kỳ đã lưu trước khi xem kết quả."),
+            ("Cập nhật khi có điểm mới",
+             "Dự đoán được tính lại từ dữ liệu hiện có và không lưu thành lịch sử."),
+        ]
+    else:
+        ty_le = du_doan["ty_le"]
+        if ty_le >= 60:
+            uu_tien = (
+                "Trao đổi sớm với cố vấn học tập",
+                "Xem đây là tín hiệu để rà soát kế hoạch học; quyết định chính "
+                "thức vẫn theo quy chế của trường.",
+            )
+        elif ty_le >= 35:
+            uu_tien = (
+                "Rà soát kế hoạch học tập",
+                "Theo dõi các môn và tín chỉ đã đạt để chủ động điều chỉnh "
+                "khối lượng học.",
+            )
+        else:
+            uu_tien = (
+                "Duy trì tiến độ học tập",
+                "Tiếp tục cập nhật điểm đầy đủ để các lần ước lượng sau có "
+                "thông tin mới nhất.",
+            )
+        goi_y = [
+            uu_tien,
+            ("Kiểm tra lại dữ liệu điểm",
+             "Đảm bảo điểm thành phần, trọng số và tín chỉ của các môn đã nhập "
+             "đúng."),
+            ("Đối chiếu với cố vấn học tập",
+             "Mô hình chỉ mang tính tham khảo, không thay thế kết luận học vụ "
+             "của nhà trường."),
+        ]
+
     muc = "".join(
         f'<div style="display:flex;gap:12px;align-items:flex-start;'
         f'padding:12px 14px;border:1px solid {t.BORDER};'
@@ -89,13 +135,13 @@ def _the_goi_y() -> None:
         f'<div style="width:22px;height:22px;border-radius:6px;'
         f'background:{t.TIP_BG};color:{t.SUCCESS};font-size:12px;'
         f'font-weight:700;display:flex;align-items:center;'
-        f'justify-content:center;flex:0 0 22px">{tp["n"]}</div>'
+        f'justify-content:center;flex:0 0 22px">{i}</div>'
         f'<div style="display:flex;flex-direction:column;gap:3px">'
         f'<div style="font-size:15px;font-weight:600;color:{t.TEXT}">'
-        f'{tp["title"]}</div>'
+        f'{title}</div>'
         f'<div style="font-size:14px;color:{t.MUTED};line-height:1.45">'
-        f'{tp["detail"]}</div></div></div>'
-        for tp in d.TIPS
+        f'{detail}</div></div></div>'
+        for i, (title, detail) in enumerate(goi_y, start=1)
     )
     st.markdown(
         f'<div class="mk-card" style="display:flex;flex-direction:column;'
@@ -155,10 +201,24 @@ def _khung_gpa_tich_luy() -> None:
 
 def render() -> None:
     khoa = st.session_state.goal
+    du_doan = d.du_doan_canh_bao(
+        st.session_state.courses,
+        st.session_state.khoa_from,
+        st.session_state.so_ky,
+    )
     st.markdown(_CSS.replace("{active}", f"goal_{list(d.GOALS).index(khoa)}"),
                 unsafe_allow_html=True)
 
-    b.page_title("Cảnh báo & Mục tiêu học tập", d.RISK_UPDATED)
+    cap_nhat = (
+        f'Ước lượng từ học kỳ gần nhất đủ điểm: {du_doan["hoc_ky"]}'
+        if du_doan else "Chưa đủ dữ liệu điểm hoàn chỉnh để ước lượng"
+    )
+    b.page_title("Cảnh báo & Mục tiêu học tập", cap_nhat)
+    st.caption(
+        "Mô hình được huấn luyện trên dữ liệu mô phỏng; điểm rèn luyện, mức "
+        "vắng, hệ đào tạo và học phí không có trong hồ sơ nên được xem là "
+        "thiếu/không rõ. Kết quả chỉ hiển thị, không lưu vào SQL."
+    )
     b.spacer(22)
     _khung_gpa_tich_luy()
     b.spacer(26)
@@ -166,9 +226,15 @@ def render() -> None:
     # Lưới 1.15fr / 1fr như mockup
     trai, phai = st.columns([1.15, 1], vertical_alignment="top")
     with trai:
-        _the_nguy_co()
+        if du_doan:
+            _the_nguy_co(du_doan)
+        else:
+            st.info(
+                "Hãy nhập đủ điểm thành phần cho ít nhất một học kỳ để xem "
+                "dự đoán và lý do SHAP."
+            )
     with phai:
-        _the_goi_y()
+        _the_goi_y(du_doan)
 
     b.spacer(26)
 

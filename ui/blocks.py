@@ -185,7 +185,7 @@ def semester_table(courses, on_edit, on_delete, dang_sua=None) -> None:
                             on_delete(c)
 
 
-def bar(pct: int, mau: str) -> str:
+def bar(pct: float, mau: str) -> str:
     """Thanh tiến trình đặc, cao 12px, bo tròn."""
     return (f'<div class="mk-bar"><div style="width:{pct}%;'
             f'background:{mau}"></div></div>')

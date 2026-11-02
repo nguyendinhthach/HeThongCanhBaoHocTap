@@ -1,12 +1,10 @@
-"""Cấu hình hiển thị và các số liệu còn tạm cố định.
+"""Cấu hình hiển thị, dữ liệu mẫu và đặc trưng dự đoán trực tiếp.
 
 Môn học và hồ sơ người dùng nay đọc từ SQL Server qua db/repo.py, không còn
 nằm ở đây. Phần dữ liệu mẫu bên dưới chỉ còn một việc: sinh ra
 db/du_lieu_mau.sql, để bộ số dùng lúc dựng giao diện được giữ nguyên làm mốc
-đối chiếu.
-
-Các con số ở phần "Cảnh báo & Mục tiêu" vẫn là giá trị cố định — phần đó chờ
-mô hình dự đoán, chỗ lưu đã sẵn sàng ở bảng du_doan_canh_bao.
+đối chiếu. Dự đoán nguy cơ dùng lịch sử môn học thật trong phiên hiện tại và
+không ghi kết quả vào cơ sở dữ liệu.
 """
 
 from ui import rules
@@ -86,7 +84,7 @@ def seed_courses() -> list[dict]:
 
 
 def metrics(courses: list[dict], scale: int, tat_ca: list[dict],
-            nam: str, ky: str) -> list[dict]:
+            nam: str, ky: str, du_doan: dict | None = None) -> list[dict]:
     """Bốn thẻ chỉ số của kỳ đang xem; nhãn đổi theo thang điểm."""
     tk = rules.tom_tat(courses)
     delta, mau_delta = rules.so_sanh_ky_truoc(tat_ca, nam, ky, scale)
@@ -107,9 +105,13 @@ def metrics(courses: list[dict], scale: int, tat_ca: list[dict],
          "value": str(tk["truot"]),
          "color": t.DANGER if tk["truot"] else t.SUCCESS,
          "delta": no_delta, "delta_color": t.MUTED},
-        {"label": "Mức nguy cơ", "value": RISK_LABEL,
-         "color": t.RISK_STYLES[RISK_LABEL]["dot"],
-         "delta": f"{RISK_PCT}% bị cảnh báo học vụ", "delta_color": t.MUTED},
+        {"label": "Mức nguy cơ",
+         "value": du_doan["muc_nguy_co"] if du_doan else "Chưa đủ dữ liệu",
+         "color": (t.RISK_STYLES[du_doan["muc_nguy_co"]]["dot"]
+                   if du_doan else t.MUTED),
+         "delta": (f'{du_doan["ty_le"]:g}% xác suất kỳ tới'
+                   if du_doan else "Cần ít nhất một học kỳ đủ điểm"),
+         "delta_color": t.MUTED},
     ]
 
 
@@ -117,6 +119,159 @@ def course_footnote(courses: list[dict]) -> str:
     tk = rules.tom_tat(courses)
     return (f'{len(courses)} môn · {tk["tin_chi"]} tín chỉ trong học kỳ này · '
             'môn ghi "tạm tính" là chưa nhập đủ 100% trọng số điểm thành phần')
+
+
+def dac_trung_canh_bao(courses: list[dict], khoa_from: int | str,
+                       so_ky: int) -> tuple[dict | None, str | None]:
+    """Tạo đặc trưng cho học kỳ gần nhất đã có điểm hoàn chỉnh.
+
+    Các cột không lưu trong hồ sơ SQL được giữ thiếu hoặc gán nhóm "không trả
+    lời", đúng với cách dữ liệu khảo sát được mã hoá khi huấn luyện.
+    """
+    from ml import gan_nhan
+
+    try:
+        nam_nhap_hoc = int(khoa_from)
+    except (TypeError, ValueError) as loi:
+        raise ValueError("Niên khoá bắt đầu không hợp lệ.") from loi
+    if so_ky not in (2, 3):
+        raise ValueError("Số học kỳ mỗi năm phải là 2 hoặc 3.")
+
+    theo_ky: dict[tuple[int, int], list[dict]] = {}
+    for mon in courses:
+        try:
+            nam = int(mon["year"][:4])
+            ky = int("".join(c for c in mon["sem"] if c.isdigit()))
+        except (KeyError, TypeError, ValueError) as loi:
+            raise ValueError("Môn học thiếu năm hoặc học kỳ hợp lệ.") from loi
+        if nam < nam_nhap_hoc or not 1 <= ky <= so_ky:
+            raise ValueError(
+                f'Học kỳ {mon["year"]} · {mon["sem"]} không khớp niên khoá '
+                "hoặc số học kỳ trong hồ sơ."
+            )
+        theo_ky.setdefault((nam, ky), []).append(mon)
+
+    cac_ky_day_du = []
+    for (nam, ky), mon_trong_ky in sorted(theo_ky.items()):
+        # Không đưa điểm tạm tính vào mô hình như thể học kỳ đã kết thúc.
+        if not all(rules.du_trong_so(mon) and rules.diem_mon(mon) is not None
+                   for mon in mon_trong_ky):
+            continue
+        tong_tin_chi = sum(mon["credits"] for mon in mon_trong_ky)
+        if tong_tin_chi <= 0:
+            continue
+        hoc_ky = (nam - nam_nhap_hoc) * so_ky + ky
+        cac_ky_day_du.append((hoc_ky, nam, ky, mon_trong_ky))
+
+    if not cac_ky_day_du:
+        return None, None
+
+    lich_su = []
+    canh_bao_lien_tiep = 0
+    hoc_ky_truoc = None
+    for hoc_ky, nam, ky, mon_trong_ky in cac_ky_day_du:
+        if hoc_ky_truoc is not None and hoc_ky != hoc_ky_truoc + 1:
+            canh_bao_lien_tiep = 0
+
+        mon_den_ky_nay = [
+            mon for mon in courses
+            if (int(mon["year"][:4]), int("".join(
+                c for c in mon["sem"] if c.isdigit()))) <= (nam, ky)
+        ]
+        dang_ky = {}
+        for mon in mon_den_ky_nay:
+            ma = mon.get("code") or mon["name"]
+            # Học lại không tạo thêm một mã môn trong tổng tín chỉ đăng ký.
+            if ma not in dang_ky or mon["credits"] > dang_ky[ma]["credits"]:
+                dang_ky[ma] = mon
+
+        # Dùng cùng quy tắc lấy lần điểm tốt nhất/môn với GPA tích luỹ của UI.
+        tc_dang_ky = sum(mon["credits"] for mon in dang_ky.values())
+
+        mon_tich_luy = rules.mon_tinh_tich_luy(mon_den_ky_nay)
+        tk_tich_luy = rules.tom_tat(mon_tich_luy)
+        tctl = sum(mon["credits"] for mon in mon_tich_luy
+                   if rules.diem_mon(mon) >= gan_nhan.DIEM_DAT)
+        no_tc = tc_dang_ky - tctl
+        dtb_hk = rules.tom_tat(mon_trong_ky)["gpa4"]
+        dtb_tl = tk_tich_luy["gpa4"]
+        ly_do_canh_bao = gan_nhan.ly_do_canh_bao(
+            dtb_hk, dtb_tl, tctl, no_tc, ky_dau=hoc_ky == 1)
+        canh_bao = int(bool(ly_do_canh_bao))
+        canh_bao_lien_tiep = (
+            canh_bao_lien_tiep + 1 if canh_bao else 0
+        )
+        lich_su.append({
+            "hoc_ky": hoc_ky,
+            "tc_dat_hk": sum(
+                mon["credits"] for mon in mon_trong_ky
+                if rules.diem_mon(mon) >= gan_nhan.DIEM_DAT
+            ),
+            "dtb_hk": dtb_hk,
+            "tctl": tctl,
+            "no_tc": no_tc,
+            "dtb_tl": dtb_tl,
+            "trinh_do": gan_nhan.trinh_do_nam(tctl),
+            "canh_bao": canh_bao,
+            "so_lan_canh_bao_lien_tiep": canh_bao_lien_tiep,
+        })
+        hoc_ky_truoc = hoc_ky
+
+    gan_nhat = lich_su[-1]
+    co_hoc_ky_truoc = (
+        len(lich_su) > 1
+        and lich_su[-2]["hoc_ky"] == gan_nhat["hoc_ky"] - 1
+    )
+    dtb_hk_thay_doi = float("nan")
+    if co_hoc_ky_truoc:
+        dtb_hk_thay_doi = gan_nhat["dtb_hk"] - lich_su[-2]["dtb_hk"]
+
+    # Các trường không có trong SQL phải theo đúng quy ước thiếu của tập train.
+    dac_trung = {
+        **gan_nhat,
+        "drl": float("nan"),
+        "ky_su": float("nan"),
+        "muc_vang": float("nan"),
+        "dtb_hk_thay_doi": dtb_hk_thay_doi,
+        "drl_thieu": 1.0,
+        "muc_vang_thieu": 1.0,
+        "dtb_hk_thay_doi_thieu": float(not co_hoc_ky_truoc),
+        "hoc_phi_dung_han": 0.0,
+        "hoc_phi_tre_han": 0.0,
+        "hoc_phi_chua_du": 0.0,
+        "hoc_phi_mien": 0.0,
+        "hoc_phi_khong_tra_loi": 1.0,
+    }
+    return dac_trung, f"{nam}–{nam + 1} · Học kỳ {ky}"
+
+
+def du_doan_canh_bao(courses: list[dict], khoa_from: int | str,
+                      so_ky: int) -> dict | None:
+    """Tính xác suất và lý do SHAP trực tiếp, không lưu dự đoán."""
+    dac_trung, hoc_ky = dac_trung_canh_bao(courses, khoa_from, so_ky)
+    if dac_trung is None:
+        return None
+
+    import pandas as pd
+    from ml import giai_thich
+
+    mo_hinh, cot_huan_luyen = giai_thich.mo_hinh_tai("canh_bao")
+    cot_thieu = set(cot_huan_luyen) - dac_trung.keys()
+    if cot_thieu:
+        raise ValueError(
+            f"Chưa ánh xạ đủ đặc trưng cho mô hình: {sorted(cot_thieu)}"
+        )
+    X = pd.DataFrame(
+        [{cot: dac_trung[cot] for cot in cot_huan_luyen}],
+        columns=cot_huan_luyen,
+    )
+    ty_le = round(float(mo_hinh.predict_proba(X)[0, 1]) * 100, 1)
+    return {
+        "muc_nguy_co": rules.risk_label(ty_le),
+        "ty_le": ty_le,
+        "ly_do": giai_thich.ly_do(mo_hinh, X)[0],
+        "hoc_ky": hoc_ky,
+    }
 
 
 # --- Thêm / cập nhật môn học ----------------------------------------------
@@ -130,28 +285,6 @@ def form_rows_moi() -> list[dict]:
 
 
 # --- Cảnh báo & Mục tiêu ---------------------------------------------------
-RISK_PCT = 46
-RISK_LABEL = "Trung bình"
-RISK_UPDATED = ("Cập nhật lần cuối: 30/08/2026 · dựa trên toàn bộ 11 môn "
-                "(32 tín chỉ) đã ghi nhận qua các học kỳ")
-
-REASONS = [
-    "Điểm giữa kỳ môn Trí tuệ nhân tạo chỉ 5,5 — thấp hơn 2,1 điểm so với "
-    "trung bình các môn khác.",
-    "Đang có 1 môn dưới 5.0 (Cơ sở dữ liệu phân tán, học lại lần 2).",
-    "GPA giảm liên tiếp 2 học kỳ gần nhất (2,95 → 2,55).",
-]
-
-TIPS = [
-    {"n": "1", "title": "Cần cải thiện điểm chuyên cần",
-     "detail": "Chuyên cần chiếm 10% nhưng đang ở mức 6,0 — dễ nâng nhất "
-               "trong các thành phần."},
-    {"n": "2", "title": "Ưu tiên ôn thi Cơ sở dữ liệu phân tán",
-     "detail": "Chỉ cần 5,0 điểm thi cuối kỳ là đủ qua môn và xoá nợ tín chỉ."},
-    {"n": "3", "title": "Giảm số tín chỉ học kỳ tới xuống 12–14",
-     "detail": "Giúp tập trung vào các môn đang có nguy cơ trượt."},
-]
-
 # Ngưỡng Giỏi/Khá lấy từ khung xếp loại học lực (rules._XEP_LOAI, SPEC §9.3)
 # để chỉ có một chỗ giữ con số; so với GPA tích luỹ thang 4.
 GOALS = {
