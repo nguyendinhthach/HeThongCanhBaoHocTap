@@ -124,21 +124,11 @@ def render() -> None:
 
     trong_ky = rules.loc_ky(st.session_state.courses,
                             st.session_state.nam_hoc, st.session_state.hoc_ky)
-    du_doan = d.du_doan_canh_bao(
-        st.session_state.courses,
-        st.session_state.khoa_from,
-        st.session_state.so_ky,
-    )
 
     b.spacer(t.SHELL_GAP)
     b.metrics(d.metrics(trong_ky, scale, st.session_state.courses,
                         st.session_state.nam_hoc,
-                        st.session_state.hoc_ky, du_doan))
-    st.caption(
-        "Mức nguy cơ là ước lượng từ dữ liệu mô phỏng và lịch sử điểm đã nhập; "
-        "các thông tin không lưu trong hồ sơ được xem là chưa biết. Kết quả "
-        "không được ghi vào SQL."
-    )
+                        st.session_state.hoc_ky))
     b.spacer(t.SHELL_GAP)
 
     # --- Bảng môn học -----------------------------------------------------
