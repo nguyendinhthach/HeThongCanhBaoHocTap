@@ -25,6 +25,7 @@ Mỗi file phương pháp cần:
 - __main__: chay_thu(tao_mo_hinh, "Tên phương pháp", LUOI_THAM_SO).
 """
 
+import os
 import sys
 
 import numpy as np
@@ -42,7 +43,10 @@ SO_FOLD = 5
 SO_FOLD_TRONG = 3
 SEED = 42
 BETA = 2                     # F2: recall nặng gấp đôi precision
-SO_LUONG_SONG_SONG = -1      # số tiến trình chạy song song (-1 = mọi nhân CPU)
+# Số tiến trình chạy song song (-1 = mọi nhân CPU). Máy nào bị lỗi bộ nhớ khi
+# chạy song song nhiều (đã gặp với XGBoost trên Python 3.14) thì đặt biến môi
+# trường ML_SO_TIEN_TRINH nhỏ lại, ví dụ 4, hoặc 1 để chạy tuần tự.
+SO_LUONG_SONG_SONG = int(os.environ.get("ML_SO_TIEN_TRINH", "-1"))
 CAC_CHI_SO = ["pr_auc", "roc_auc", "precision", "recall", "f1", "f2", "nguong"]
 
 

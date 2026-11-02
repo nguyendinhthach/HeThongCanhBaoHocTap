@@ -33,25 +33,13 @@ import pandas as pd
 
 import dac_trung
 import danh_gia
-import decision_tree
-import lightgbm_model
-import random_forest
-import svm
-import xgboost_model
+from mo_hinh_cuoi import PHUONG_PHAP   # thứ tự cố định, quyết định cả màu trên biểu đồ
 
 
 THU_MUC_GOC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THU_MUC_KET_QUA = os.path.join(THU_MUC_GOC, "results")
 
 TEN_BASELINE = "Baseline luật"
-# Thứ tự cố định: quyết định cả màu trên biểu đồ (màu đi theo phương pháp)
-PHUONG_PHAP = {
-    "Decision Tree": decision_tree,
-    "SVM": svm,
-    "XGBoost": xgboost_model,
-    "Random Forest": random_forest,
-    "LightGBM": lightgbm_model,
-}
 TEN_MUC_TIEU = {
     "canh_bao": "Cảnh báo kỳ sau",
     "thoi_hoc_suy_ra": "Thôi học\n(suy từ cảnh báo)",

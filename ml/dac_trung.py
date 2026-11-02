@@ -149,7 +149,17 @@ def _truot_mon(duong_dan):
     """
     bang, mon = doc_du_lieu(duong_dan)
     mon = mon[mon["truot_mon"].notna()].reset_index(drop=True)   # bỏ "Không muốn trả lời"
+    X = dac_trung_mon(bang, mon)
+    y = mon["truot_mon"].astype(int).rename("truot_mon")
+    return X, y, mon["ma_sv"]
 
+
+def dac_trung_mon(bang, mon):
+    """Đặc trưng của từng môn (mỗi dòng `mon` một dòng): thông tin của môn có
+    trước cuối kỳ + lịch sử đến học kỳ k−1 từ bảng học kỳ `bang`.
+
+    `mon` phải có chỉ số 0..n−1 (reset_index) để ghép đúng dòng.
+    """
     X = pd.DataFrame({
         "hoc_ky": mon["hoc_ky"].astype(float),
         "so_tc": mon["so_tc"],
@@ -174,9 +184,30 @@ def _truot_mon(duong_dan):
     X["lich_su_thieu"] = ghep["truoc_dtb_hk"].isna().astype(float).to_numpy()
     for cot in COT_MON_CO_THE_THIEU:
         X[f"{cot}_thieu"] = X[cot].isna().astype(float)
+    return X
 
-    y = mon["truot_mon"].astype(int).rename("truot_mon")
-    return X, y, mon["ma_sv"]
+
+def dac_trung_du_doan(muc_tieu, duong_dan=None):
+    """Đặc trưng để DỰ ĐOÁN (không cần nhãn), cùng bộ cột với tao_du_lieu().
+
+    - "canh_bao" / "thoi_hoc": học kỳ gần nhất của mỗi sinh viên, để dự đoán
+      học kỳ kế tiếp (lúc huấn luyện học kỳ này bị bỏ vì chưa có nhãn).
+    - "truot_mon": mọi môn của học kỳ gần nhất, kể cả môn chưa có kết quả.
+
+    Trả về (X, thong_tin): thong_tin có ma_sv, hoc_ky (và stt_mon, ten_mon
+    với "truot_mon"), cùng chỉ số với X.
+    """
+    if muc_tieu not in MUC_TIEU:
+        raise ValueError(f"muc_tieu phải là một trong {MUC_TIEU}, nhận {muc_tieu!r}")
+    bang, mon = doc_du_lieu(duong_dan)
+    if muc_tieu == "truot_mon":
+        X = dac_trung_mon(bang, mon)
+        return X, mon[["ma_sv", "hoc_ky", "stt_mon", "ten_mon"]]
+
+    X = dac_trung_hoc_ky(bang)
+    cuoi = (bang.groupby("ma_sv")["hoc_ky"].transform("max") == bang["hoc_ky"]).to_numpy()
+    X = X[cuoi].reset_index(drop=True)
+    return X, bang.loc[cuoi, ["ma_sv", "hoc_ky"]].reset_index(drop=True)
 
 
 def tao_du_lieu(muc_tieu, duong_dan=None):
