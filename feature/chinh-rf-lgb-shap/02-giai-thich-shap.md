@@ -1,41 +1,50 @@
 # Task 2 — Giải thích mô hình bằng SHAP
 
-## Mục tiêu
+## Yêu cầu đã chốt với leader
 
-- Huấn luyện mô hình tốt nhất trong nhóm XGBoost/LightGBM theo kết quả so sánh, dùng toàn bộ dữ liệu của từng mục tiêu.
-- Tạo biểu đồ SHAP cho từng mục tiêu và một hàm trả lời ba đặc trưng ảnh hưởng mạnh nhất cho mỗi dòng.
-- Dự đoán trực tiếp trong ứng dụng từ điểm môn học đã lưu, hiển thị lý do SHAP và không ghi lịch sử dự đoán vào SQL.
+- Mục tiêu chính là cảnh báo sớm cho **học kỳ kế tiếp**: dùng dữ liệu đã có ở học kỳ `k` để dự đoán nguy cơ ở học kỳ `k+1`.
+- Giữ phần mô hình học máy và SHAP; không thay việc học máy bằng các luật `if/else`.
+- Không tính lại GPA/điểm trên website. Đầu vào phải dùng điểm và số liệu tổng kết do nguồn dữ liệu cung cấp.
+- Có hai luồng dữ liệu cần hỗ trợ khi làm giao diện ở giai đoạn sau:
+  1. **Giảng viên:** tải Excel có nhiều sinh viên; hệ thống nhận diện/ghép cột dữ liệu để dự đoán cho từng sinh viên.
+  2. **Sinh viên:** cung cấp kết quả các học kỳ đã qua, theo cách nhập liệu phù hợp với bộ dữ liệu khảo sát.
+- Chưa làm giao diện trong task này. Giao diện hiện có chưa đại diện cho hai luồng trên và cần được thiết kế lại ở giai đoạn cuối.
+
+## Phạm vi hiện tại
+
+- Giữ phần so sánh/tinh chỉnh Random Forest và LightGBM của Task 1, phần giải thích SHAP, dependency và ba biểu đồ đã tạo.
+- Không giữ phần tích hợp dự đoán trực tiếp vào ứng dụng hoặc các thay đổi giao diện của Task 2.
+- Hợp đồng dữ liệu huấn luyện trong `ml/dac_trung.py` đã định nghĩa `canh_bao` và `thoi_hoc` bằng dữ liệu cuối kỳ `k` với nhãn ở `k+1`. Mục tiêu `truot_mon` là bài toán riêng, dự đoán kết quả môn sau giữa kỳ, không phải cảnh báo học kỳ kế tiếp.
 
 ## File liên quan
 
-- `ml/giai_thich.py`: chọn mô hình/cấu hình, huấn luyện, tạo `TreeExplainer`, lưu biểu đồ và cung cấp `ly_do(...)`.
-- `requirements.txt`: thêm SHAP làm dependency.
-- `ui/data.py`: suy ra các đặc trưng học tập từ lịch sử môn học và gọi mô hình để dự đoán trực tiếp.
-- `ui/screens/risk.py`, `ui/screens/dashboard.py`: hiển thị cùng một dự đoán live; trang cảnh báo có thêm lý do SHAP.
-- `app.py`: mô tả đúng luồng dự đoán, không lưu kết quả vào SQL.
-- `results/shap_<muc_tieu>.png`: biểu đồ độ quan trọng theo SHAP.
+- `ml/random_forest.py`, `ml/lightgbm_model.py`: các mô hình và cấu hình được tinh chỉnh ở Task 1.
+- `ml/dac_trung.py`: hợp đồng đặc trưng/nhãn; xác định mốc dữ liệu `k` và nhãn kỳ sau `k+1`.
+- `ml/giai_thich.py`: chọn mô hình/cấu hình, tạo giải thích SHAP và biểu đồ cho ba mục tiêu.
+- `requirements.txt`: khai báo SHAP.
+- `results/shap_<muc_tieu>.png`: biểu đồ SHAP cho từng mục tiêu.
 
 ## Cách triển khai
 
-1. Dựa trên `results/so_sanh_tom_tat.csv`, chọn XGBoost cho `canh_bao`, LightGBM cho `thoi_hoc` và `truot_mon`; dùng cấu hình được chọn thường xuyên nhất trong các fold.
-2. Huấn luyện từng mô hình trên toàn bộ `(X, y)` từ `dac_trung.tao_du_lieu(...)`.
-3. Dùng `shap.TreeExplainer` để tạo biểu đồ tầm quan trọng và lưu theo tên mục tiêu.
-4. `mo_hinh_tai("canh_bao")` huấn luyện mô hình một lần trong tiến trình ứng dụng và giữ lại để tái sử dụng.
-5. `ui.data.dac_trung_canh_bao(...)` tính các đặc trưng từ học kỳ đã nhập đủ điểm. Những dữ liệu không lưu trong SQL (điểm rèn luyện, mức vắng, hệ đào tạo) được đánh dấu thiếu; học phí dùng nhóm “không muốn trả lời”.
-6. `ui.data.du_doan_canh_bao(...)` căn chỉnh đúng thứ tự cột huấn luyện, tính xác suất và gọi `ly_do(...)`. Dashboard và trang cảnh báo dùng cùng luồng; không ghi dự đoán vào SQL.
+1. Dùng các kết quả so sánh mô hình hiện có để chọn cấu hình cho phần giải thích; không thay đổi các mô hình đã được leader chấp thuận.
+2. Huấn luyện mô hình trên dữ liệu theo hợp đồng `(X, y, nhom)` của `dac_trung.tao_du_lieu(...)`.
+3. Với cảnh báo học kỳ tiếp theo, đặc trưng chỉ lấy từ học kỳ `k`; nhãn kiểm tra là kết quả cảnh báo ở `k+1`, không phải kết quả của chính kỳ `k`.
+4. Dùng `shap.TreeExplainer` để tạo biểu đồ và nêu các đặc trưng ảnh hưởng mạnh nhất.
+5. Khi triển khai hai luồng nhập liệu sau này, ghép dữ liệu Excel của giảng viên hoặc dữ liệu các kỳ trước do sinh viên cung cấp vào đúng hợp đồng đặc trưng. Dùng điểm/GPA đã có từ nguồn; không tự tính lại điểm.
+6. Hoãn màn hình, upload Excel và nhập liệu sinh viên đến giai đoạn làm giao diện; không gắn dự đoán live vào `ui/` trong task này.
 
 ## Kiểm tra
 
-- Chạy `python ml/test_danh_gia.py` để kiểm tra đánh giá mô hình; biên dịch các file Python liên quan.
+- Chạy `python ml/test_danh_gia.py` để kiểm tra các phép đo và đánh giá mô hình.
 - Chạy `python ml/giai_thich.py`, xác nhận có đủ ba biểu đồ SHAP.
-- Smoke test bộ chuyển đặc trưng với dữ liệu đủ điểm, học kỳ thiếu điểm và dự đoán live: xác suất nằm trong 0–100%, có ba lý do SHAP, không cần ghi SQL.
-- Kết quả thực tế: đã tạo đủ ba PNG; `ly_do` trả ba lý do cho mỗi dòng với cả XGBoost và LightGBM; smoke test live prediction với dữ liệu môn mẫu đã đạt.
-- Tám kiểm thử đánh giá mô hình hiện có đều đạt; các file Python liên quan biên dịch được.
+- Kiểm tra nhãn cảnh báo trong `ml/dac_trung.py`: dữ liệu kỳ `k` được ghép với nhãn kỳ `k+1`.
+- Kết quả hiện có: 8/8 kiểm thử đánh giá đạt; ba biểu đồ SHAP đã được tạo. Không triển khai hoặc kiểm tra giao diện trong task này.
 
 ## Kịch bản báo cáo
 
-- **File / folder:** `ml/giai_thich.py` tạo phần giải thích và giữ mô hình trong bộ nhớ; `ui/data.py` chuyển môn học thành đặc trưng; thư mục `results/` lưu biểu đồ; dashboard và màn hình `ui/screens/risk.py` hiển thị dự đoán trực tiếp.
-- **Mục đích:** mô hình cần giải thích được để người dùng hiểu yếu tố nào ảnh hưởng tới nguy cơ, thay vì chỉ thấy một tỷ lệ.
-- **Kết quả:** mỗi mục tiêu có biểu đồ SHAP; với tài khoản có ít nhất một học kỳ đủ điểm, ứng dụng hiển thị xác suất và ba lý do SHAP được tính từ dữ liệu môn học. Nếu chưa đủ dữ liệu, màn hình báo rõ thay vì dùng số liệu mẫu.
-- **Lưu ý:** dữ liệu huấn luyện vẫn là dữ liệu mô phỏng. SQL Server không lưu điểm rèn luyện, mức vắng, hệ đào tạo và học phí; các trường này được để thiếu/không rõ, nên dự đoán chỉ mang tính tham khảo. Không có bản ghi dự đoán nào được ghi vào SQL. LightGBM có cảnh báo về định dạng SHAP mới; hàm chuẩn hoá đã xử lý định dạng này.
-- **Công cụ:** Python, SHAP, XGBoost/LightGBM, pandas, matplotlib, Streamlit và SQL Server hiện có.
+- **File / folder:** `ml/dac_trung.py` quy định dữ liệu đầu vào và mốc dự đoán; `ml/giai_thich.py` tạo phần giải thích; `results/` lưu biểu đồ; `ml/random_forest.py` và `ml/lightgbm_model.py` là các mô hình được tinh chỉnh ở Task 1.
+- **Mục đích:** cảnh báo phải dự đoán trước một kỳ để người dùng có thời gian chủ động; SHAP giúp giải thích những đặc trưng đã ảnh hưởng đến kết quả mô hình.
+- **Kết quả:** phần mô hình và SHAP được giữ nguyên; mục tiêu `canh_bao`/`thoi_hoc` dùng dữ liệu kỳ `k` để dự đoán kỳ `k+1`. Giao diện và hai luồng nhập dữ liệu chưa được triển khai.
+- **Hai luồng sẽ làm ở giai đoạn giao diện:** giảng viên tải Excel nhiều sinh viên để nhận diện/ghép cột; sinh viên cung cấp kết quả các kỳ trước. Cả hai phải dùng cùng hợp đồng đặc trưng và kết quả điểm do nguồn cung cấp.
+- **Lưu ý:** `truot_mon` là mục tiêu riêng ở cấp môn học, dự đoán sau giữa kỳ; không nên nhầm với cảnh báo học vụ cho kỳ tiếp theo. Dữ liệu đánh giá hiện tại là dữ liệu mô phỏng, nên cần kiểm tra lại chất lượng khi có dữ liệu Excel/sinh viên thực tế. Mô hình là công cụ hỗ trợ tham khảo, không thay thế quy chế học vụ.
+- **Công cụ:** Python, scikit-learn, LightGBM, XGBoost, SHAP, pandas và matplotlib.
