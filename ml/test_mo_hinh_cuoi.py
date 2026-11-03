@@ -85,7 +85,9 @@ def test_du_doan_canh_bao_moi_sinh_vien_ky_gan_nhat():
     bang = dac_trung.doc_bang_hoc_ky(c["du_lieu"])
     ky_cuoi = bang.groupby("ma_sv")["hoc_ky"].max()
     assert kq["ma_sv"].is_unique and set(kq["ma_sv"]) == set(ky_cuoi.index)
-    assert (kq["hoc_ky"].to_numpy() == ky_cuoi[kq["ma_sv"]].to_numpy()).all()
+    # Dữ liệu kỳ cuối đã học xong, dự đoán cho kỳ kế tiếp
+    assert (kq["dua_tren_hk"].to_numpy() == ky_cuoi[kq["ma_sv"]].to_numpy()).all()
+    assert (kq["du_doan_cho_hk"] == kq["dua_tren_hk"] + 1).all()
     assert kq["xac_suat"].between(0, 1).all()
     assert (kq["bao_dong"] == (kq["xac_suat"] >= c["goi"]["canh_bao"]["nguong"] - 1e-4)).all()
     # Lý do chỉ có khi báo động, tối đa 3, không có "Thiếu: ..."
@@ -123,6 +125,21 @@ def test_ly_do_chi_lay_dac_trung_tang_nguy_co():
         else:                            # điểm cao làm GIẢM nguy cơ: không phải lý do
             assert not any(l.startswith("Điểm giữa kỳ") for l in cac_ly_do), cac_ly_do
         assert not any("Thiếu" in l for l in cac_ly_do)
+
+
+def test_du_doan_tu_cong_thong_tin_khong_doan_mon_chua_co_diem_gk():
+    c = chuan_bi()
+    file_mau = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "du_lieu_mau", "cong_thong_tin_mau.txt")
+    cb = mo_hinh_cuoi.du_doan(file_mau, "canh_bao", c["mo_hinh"])
+    assert len(cb) == 1 and cb["xac_suat"].between(0, 1).all()
+    tm = mo_hinh_cuoi.du_doan(file_mau, "truot_mon", c["mo_hinh"])
+    # Kỳ đang học chưa có điểm giữa kỳ: không đoán bừa
+    assert len(tm) == 6 and tm["xac_suat"].isna().all() and not tm["bao_dong"].any()
+    assert (tm["ghi_chu"] != "").all()
+    # Cả 3 mục tiêu cùng dự đoán cho học kỳ đang học (HK thứ 7), dựa trên HK thứ 6
+    assert (cb["du_doan_cho_hk"] == 7).all() and (tm["du_doan_cho_hk"] == 7).all()
+    assert (cb["dua_tren_hk"] == 6).all() and (tm["dua_tren_hk"] == 6).all()
 
 
 def test_du_doan_file_that():

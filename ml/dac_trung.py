@@ -72,6 +72,9 @@ COT_MON_CO_THE_THIEU = ["diem_gk", "ti_trong_gk", "vang_lt", "vang_th", "truoc_d
 def doc_du_lieu(duong_dan=None):
     """(bảng học kỳ, bảng môn) đã gán nhãn, chỉ gồm sinh viên hợp lệ.
 
+    Nguồn theo đuôi file: .xlsx = Google Form / mô phỏng (doc_form.py), .txt =
+    văn bản dán từ cổng thông tin (doc_cong_thong_tin.py); cả hai ra cùng dạng.
+
     Bảng học kỳ có thêm cột he_dao_tao, sắp theo (ma_sv, hoc_ky). Mỗi file chỉ
     đọc một lần (đọc xlsx chậm); file đổi trên đĩa thì đọc lại.
     """
@@ -82,13 +85,22 @@ def doc_du_lieu(duong_dan=None):
 
 @lru_cache(maxsize=4)
 def _doc_du_lieu(duong_dan, _thoi_diem_sua):
-    sinh_vien, bang_hoc_ky, bang_mon = form.doc_form(duong_dan)
+    if duong_dan.lower().endswith(".txt"):
+        import doc_cong_thong_tin
+        sinh_vien, bang_hoc_ky, bang_mon = doc_cong_thong_tin.doc_file(duong_dan)
+    else:
+        sinh_vien, bang_hoc_ky, bang_mon = form.doc_form(duong_dan)
     hop_le = sinh_vien.index[sinh_vien["hop_le"]]
     bang = gan_nhan_hoc_ky(bang_hoc_ky[bang_hoc_ky["ma_sv"].isin(hop_le)])
     # gan_nhan_hoc_ky đã sắp theo (ma_sv, hoc_ky); merge "inner" giữ thứ tự đó
     bang = bang.merge(sinh_vien[["he_dao_tao"]], left_on="ma_sv", right_index=True)
     mon = gan_nhan_mon(bang_mon[bang_mon["ma_sv"].isin(hop_le)]).reset_index(drop=True)
     return bang, mon
+
+
+def _la_ky_su(he_dao_tao):
+    """1 = kỹ sư, 0 = hệ khác, NaN = nguồn không cho biết hệ đào tạo."""
+    return (he_dao_tao == HE_KY_SU).astype(float).where(he_dao_tao.notna())
 
 
 def doc_bang_hoc_ky(duong_dan=None):
@@ -103,7 +115,7 @@ def dac_trung_hoc_ky(bang):
     sinh viên). `bang` phải sắp theo (ma_sv, hoc_ky) như doc_bang_hoc_ky trả về.
     """
     X = bang[COT_HOC_KY_K].astype(float)
-    X["ky_su"] = (bang["he_dao_tao"] == HE_KY_SU).astype(float)
+    X["ky_su"] = _la_ky_su(bang["he_dao_tao"])
     X["muc_vang"] = bang["muc_vang"].map(THU_BAC_VANG)
 
     # ĐTB học kỳ tăng / giảm so với kỳ trước; kỳ đầu không có kỳ trước nên trống
@@ -167,7 +179,9 @@ def dac_trung_mon(bang, mon):
         "ti_trong_gk": mon["ti_trong_gk"],
         "vang_lt": mon["vang_lt"].map(THU_BAC_VANG_LT),
         # "Không nhớ" số buổi vắng thì môn vẫn có thực hành
-        "co_thuc_hanh": (mon["vang_th"] != form.VANG_THUC_HANH[0]).astype(float),
+        # Ô trống (nguồn không có thông tin vắng) thì không biết môn có thực hành
+        "co_thuc_hanh": (mon["vang_th"] != form.VANG_THUC_HANH[0]).astype(float)
+                        .where(mon["vang_th"].notna()),
         "vang_th": mon["vang_th"].map({form.VANG_THUC_HANH[0]: 0, form.VANG_THUC_HANH[1]: 0,
                                        form.VANG_THUC_HANH[2]: 1}),
     })
@@ -178,7 +192,7 @@ def dac_trung_mon(bang, mon):
     lich_su["hoc_ky"] = bang["hoc_ky"] + 1
     ghep = mon[["ma_sv", "hoc_ky"]].merge(lich_su, on=["ma_sv", "hoc_ky"], how="left")
     X = X.join(ghep.drop(columns=["ma_sv", "hoc_ky"]))
-    X["ky_su"] = mon["ma_sv"].map(bang.groupby("ma_sv")["he_dao_tao"].first() == HE_KY_SU).astype(float)
+    X["ky_su"] = _la_ky_su(mon["ma_sv"].map(bang.groupby("ma_sv")["he_dao_tao"].first()))
 
     # Học kỳ 1 không có lịch sử: một cột đánh dấu chung cho cả nhóm "truoc_"
     X["lich_su_thieu"] = ghep["truoc_dtb_hk"].isna().astype(float).to_numpy()
