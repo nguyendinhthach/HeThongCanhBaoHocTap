@@ -27,7 +27,7 @@ from gan_nhan import (NGUONG_DTB_TICH_LUY, SO_LAN_CANH_BAO_THOI_HOC, gan_nhan_ho
 
 FILE_MAU = os.path.join(THU_MUC_GOC, "ml", "du_lieu_mau", "cong_thong_tin_mau.txt")
 BUOC_DU_LIEU, BUOC_KIEM_TRA, BUOC_KET_QUA = "1. Dữ liệu", "2. Kiểm tra", "3. Kết quả"
-CHUA_KHAI = "Chưa khai"
+CHUA_KHAI = "Chưa cung cấp"
 CAU_VANG = [CHUA_KHAI, *form.MUC_VANG[:4]]
 CAU_HOC_PHI = [CHUA_KHAI, *form.HOC_PHI[:4]]
 COT_HOC_KY = {"tc_dat_hk": "TC đạt", "dtb_hk": "ĐTB học kỳ", "tctl": "TC tích luỹ",
@@ -93,8 +93,6 @@ def trang_du_lieu():
             "2. Nhấn **Ctrl+A** rồi **Ctrl+C**. Muốn dự đoán từng môn thì mở **Chi tiết** "
             "các môn đang học trước.\n"
             "3. Nhấp vào ô bên cạnh, nhấn **Ctrl+V**, rồi bấm **Đọc dữ liệu**.")
-        st.caption("Nên làm trên máy tính. Không cần tự xoá họ tên hay MSSV: hệ thống "
-                   "không đọc và không lưu văn bản gốc.")
     with phai:
         st.text_area("Văn bản trang Xem điểm", key="van_ban", height=340,
                      placeholder="Nhấn Ctrl+V để đưa toàn bộ trang vào đây")
@@ -149,7 +147,7 @@ def trang_kiem_tra():
                "danh sách chính thức của trường.")
 
     if len(hk_goc):
-        st.subheader(f"Khai thêm về {ten_ky[hk_goc['hoc_ky'].iloc[-1]]} (không bắt buộc)")
+        st.subheader(f"Thông tin bổ sung về {ten_ky[hk_goc['hoc_ky'].iloc[-1]]} (không bắt buộc)")
         cot1, cot2 = st.columns(2)
         st.session_state.vang_chon = cot1.selectbox(
             "Mức vắng học", CAU_VANG, index=CAU_VANG.index(st.session_state.vang_chon))
