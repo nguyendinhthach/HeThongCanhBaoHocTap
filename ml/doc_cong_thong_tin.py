@@ -48,6 +48,10 @@ from mo_phong import NGANH_KY_SU
 
 MA_SV = "SV1"
 
+# Các dòng tổng kết mô hình cần, đúng chữ trên trang
+DONG_TONG_KET = ["Số TC đạt học kỳ", "Điểm TB học kỳ (hệ 4)", "Điểm rèn luyện",
+                 "Tổng số TC tích lũy/ Số TC đăng ký", "Điểm TB tích lũy toàn khóa (hệ 4)"]
+
 # Mã ngành trong mã chương trình đào tạo (vd. "CQ23CT-PM": chính quy, khoá 23,
 # ngành CT, chuyên ngành PM). Bổ sung khi gặp mã ngành khác.
 NGANH_THEO_MA = {"CT": "Công nghệ thông tin"}
@@ -163,10 +167,10 @@ def doc_van_ban(van_ban):
     """Văn bản dán -> (sinh_vien, bang_hoc_ky, bang_mon), cùng dạng doc_form.doc_form()."""
     thong_tin, cac_hoc_ky = phan_tich(van_ban)
     if not cac_hoc_ky:
-        raise ValueError("Không tìm thấy học kỳ nào: hãy dán toàn bộ trang 'Xem điểm' "
+        raise ValueError("Không tìm thấy học kỳ nào: hãy sao chép toàn bộ trang 'Xem điểm' "
                          "(Ctrl+A, Ctrl+C) của cổng thông tin sinh viên.")
 
-    da_xong = [hk for hk in cac_hoc_ky if not np.isnan(_so(hk["tong_ket"].get("Điểm TB học kỳ (hệ 4)", "")))]
+    da_xong = [hk for hk in cac_hoc_ky if _co_tong_ket(hk)]
     dang_hoc = [hk for hk in cac_hoc_ky if hk not in da_xong]
 
     cac_dong = []
@@ -222,13 +226,57 @@ def ten_hoc_ky(van_ban):
     """{số thứ tự học kỳ như trong bảng: "HK1 2026–2027"}, kể cả kỳ đang học
     và kỳ kế tiếp sau kỳ cuối (nếu trang chưa có kỳ đang học)."""
     _, cac_hoc_ky = phan_tich(van_ban)
-    da_xong = [hk for hk in cac_hoc_ky if not np.isnan(_so(hk["tong_ket"].get("Điểm TB học kỳ (hệ 4)", "")))]
+    da_xong = [hk for hk in cac_hoc_ky if _co_tong_ket(hk)]
     theo_thu_tu = da_xong + [hk for hk in cac_hoc_ky if hk not in da_xong][-1:]
-    ten = {k: f"HK{hk['ky']} {hk['nam']}–{hk['nam'] + 1}" for k, hk in enumerate(theo_thu_tu, start=1)}
+    ten = {k: _ten_mot_ky(hk["ky"], hk["nam"]) for k, hk in enumerate(theo_thu_tu, start=1)}
     cuoi = theo_thu_tu[-1]
+    if cuoi["nam"] is None:
+        ten[len(theo_thu_tu) + 1] = "học kỳ kế tiếp"
+        return ten
     nam, ky = (cuoi["nam"], 2) if cuoi["ky"] == 1 else (cuoi["nam"] + 1, 1)
-    ten[len(theo_thu_tu) + 1] = f"HK{ky} {nam}–{nam + 1}"
+    ten[len(theo_thu_tu) + 1] = _ten_mot_ky(ky, nam)
     return ten
+
+
+def _co_tong_ket(hoc_ky):
+    return not np.isnan(_so(hoc_ky["tong_ket"].get("Điểm TB học kỳ (hệ 4)", "")))
+
+
+def _ten_mot_ky(ky, nam):
+    return f"HK{ky}" if nam is None else f"HK{ky} {nam}–{nam + 1}"
+
+
+def canh_bao_du_lieu(van_ban):
+    """Dấu hiệu văn bản bị thiếu hoặc bị sửa nhầm, để báo trước khi dự đoán.
+
+    Đây là những lỗi không làm bộ đọc dừng lại nhưng khiến số liệu sai mà không
+    ai biết: mất dòng "Học kỳ", thiếu dòng tổng kết... Trả về list chuỗi.
+    """
+    _, cac_hoc_ky = phan_tich(van_ban)
+    canh_bao = []
+    if cac_hoc_ky and cac_hoc_ky[0]["nam"] is None:
+        canh_bao.append("Không thấy dòng 'Năm học' đầu tiên nên tên học kỳ có thể thiếu năm.")
+
+    for truoc, sau in zip(cac_hoc_ky, cac_hoc_ky[1:]):
+        if truoc["nam"] is None or sau["nam"] is None:
+            continue
+        # HK1 -> HK2 cùng năm, hoặc HK2 trở lên -> HK1 năm sau (HK1 -> HK1 là mất HK2)
+        lien_tuc = (sau["nam"] == truoc["nam"] and sau["ky"] == truoc["ky"] + 1) or (
+            sau["nam"] == truoc["nam"] + 1 and sau["ky"] == 1 and truoc["ky"] >= 2)
+        if not lien_tuc:
+            canh_bao.append(f"Sau {_ten_mot_ky(truoc['ky'], truoc['nam'])} là "
+                            f"{_ten_mot_ky(sau['ky'], sau['nam'])}: có thể thiếu một học kỳ "
+                            "(hoặc bạn đã nghỉ học kỳ đó).")
+
+    for hk in cac_hoc_ky[:-1]:
+        if not _co_tong_ket(hk):
+            canh_bao.append(f"{_ten_mot_ky(hk['ky'], hk['nam'])} không có ĐTB học kỳ nên bị bỏ qua, "
+                            "các học kỳ sau bị đánh số lùi lại.")
+    for hk in filter(_co_tong_ket, cac_hoc_ky):
+        thieu = [dong for dong in DONG_TONG_KET if not hk["tong_ket"].get(dong)]
+        if thieu:
+            canh_bao.append(f"{_ten_mot_ky(hk['ky'], hk['nam'])} thiếu dòng: {', '.join(thieu)}.")
+    return canh_bao
 
 
 def doc_file(duong_dan):
