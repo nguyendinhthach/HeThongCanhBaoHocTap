@@ -88,8 +88,8 @@ def trang_du_lieu():
     with trai:
         st.subheader("Cách lấy dữ liệu")
         st.markdown(
-            "1. Đăng nhập **online.dlu.edu.vn**, vào **Kết quả học tập**, để Năm học và "
-            "Học kỳ ở mức tất cả.\n"
+            "1. Đăng nhập **online.dlu.edu.vn**, vào **Kết quả học tập**, chọn **Xem điểm "
+            "sinh viên**, để Năm học và Học kỳ ở mức tất cả.\n"
             "2. Nhấn **Ctrl+A** rồi **Ctrl+C**. Muốn dự đoán từng môn thì mở **Chi tiết** "
             "các môn đang học trước.\n"
             "3. Nhấp vào ô bên cạnh, nhấn **Ctrl+V**, rồi bấm **Đọc dữ liệu**.")

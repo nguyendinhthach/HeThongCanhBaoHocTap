@@ -36,7 +36,15 @@ USE HT_CANHBAOHOCTAP;
 GO
 
 
-/* --- 1. DỌN DẸP — xoá ngược thứ tự phụ thuộc khoá ngoại ------------------- */
+/* --- 1. DỌN DẸP — xoá ngược thứ tự phụ thuộc khoá ngoại -------------------
+   5 bảng đầu do db\nang_cap_canh_bao.sql thêm; phải xoá trước vì chúng tham
+   chiếu nguoi_dung. Chạy xong file này thì chạy lại file nâng cấp.
+   -------------------------------------------------------------------------- */
+DROP TABLE IF EXISTS dbo.email_da_gui;
+DROP TABLE IF EXISTS dbo.du_doan;
+DROP TABLE IF EXISTS dbo.mon_dang_hoc;
+DROP TABLE IF EXISTS dbo.hoc_ky_tong_ket;
+DROP TABLE IF EXISTS dbo.lan_cap_nhat;
 DROP TABLE IF EXISTS dbo.du_doan_muc_tieu;
 DROP TABLE IF EXISTS dbo.du_doan_canh_bao;
 DROP TABLE IF EXISTS dbo.diem_thanh_phan;

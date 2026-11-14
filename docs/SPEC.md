@@ -8,6 +8,12 @@ Nhóm: Nguyễn Đình Thạch, Phan Thành Huy
 > không cần bám sát pixel — vì mockup dựng bằng HTML còn app thật dùng
 > component chuẩn của Streamlit.
 
+> **Cập nhật 11/2026:** hướng dữ liệu và kiến trúc đã đổi (lấy kết quả từ
+> trang Xem điểm của cổng thông tin, mô hình học máy dự đoán học kỳ sau, có
+> FastAPI + tác vụ định kỳ + email). **§12 là bản thiết kế hiện hành** và
+> thay cho §3.6, §3.7, §8, §10.1; khi mâu thuẫn thì theo §12. Các mục khác
+> mô tả giao diện cũ, giữ lại để đối chiếu cho tới khi giao diện mới thay xong.
+
 ---
 
 ## 1. Phạm vi & đối tượng sử dụng
@@ -49,18 +55,18 @@ Nhóm: Nguyễn Đình Thạch, Phan Thành Huy
 
 ### 2.1 Bảng người dùng
 
-| Trường        | Kiểu                  | Ghi chú                                                              |
-| ------------- | --------------------- | -------------------------------------------------------------------- |
-| id            | INT IDENTITY, PK      |                                                                      |
-| email         | NVARCHAR(255), UNIQUE | Dùng để đăng nhập và để gửi email cảnh báo (mục 8)                   |
-| mat_khau_hash | VARCHAR(100)          | Chuỗi bcrypt — chỉ chứa ASCII nên đây là chỗ duy nhất dùng `VARCHAR` |
-| ho_ten        | NVARCHAR(100)         | Một thuộc tính duy nhất, không tách Họ/Tên                           |
-| nien_khoa_tu  | INT                   | VD `2023`                                                            |
-| nien_khoa_den | INT                   | VD `2027`                                                            |
-| so_ky_moi_nam | INT                   | 2 hoặc 3                                                             |
-| thang_diem | INT | 10 hoặc 4 — lựa chọn ở toggle Dashboard, lưu lại để không bị đặt lại mỗi lần tải trang |
-| muc_tieu | VARCHAR(20) | `gioi` / `kha` / `qua_mon` (mục 7); NULL = chưa chọn |
-| ngay_tao      | DATETIME2             |                                                                      |
+| Trường        | Kiểu                  | Ghi chú                                                                                |
+| ------------- | --------------------- | -------------------------------------------------------------------------------------- |
+| id            | INT IDENTITY, PK      |                                                                                        |
+| email         | NVARCHAR(255), UNIQUE | Dùng để đăng nhập và để gửi email cảnh báo (mục 8)                                     |
+| mat_khau_hash | VARCHAR(100)          | Chuỗi bcrypt — chỉ chứa ASCII nên đây là chỗ duy nhất dùng `VARCHAR`                   |
+| ho_ten        | NVARCHAR(100)         | Một thuộc tính duy nhất, không tách Họ/Tên                                             |
+| nien_khoa_tu  | INT                   | VD `2023`                                                                              |
+| nien_khoa_den | INT                   | VD `2027`                                                                              |
+| so_ky_moi_nam | INT                   | 2 hoặc 3                                                                               |
+| thang_diem    | INT                   | 10 hoặc 4 — lựa chọn ở toggle Dashboard, lưu lại để không bị đặt lại mỗi lần tải trang |
+| muc_tieu      | VARCHAR(20)           | `gioi` / `kha` / `qua_mon` (mục 7); NULL = chưa chọn                                   |
+| ngay_tao      | DATETIME2             |                                                                                        |
 
 ## 3. Cấu trúc dữ liệu môn học
 
@@ -86,13 +92,13 @@ Nhóm: Nguyễn Đình Thạch, Phan Thành Huy
 
 ### 3.2 Bảng điểm thành phần (nhiều dòng cho một môn học — quan hệ 1-nhiều)
 
-| Trường             | Kiểu                   | Ghi chú                                                                                                                                                                                                             |
-| ------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id                 | INT IDENTITY, PK       |                                                                                                                                                                                                                     |
-| mon_hoc_id         | INT, FK → `mon_hoc.id` | Xoá môn thì xoá theo (`ON DELETE CASCADE`)                                                                                                                                                                          |
+| Trường             | Kiểu                           | Ghi chú                                                                                                                                                                                                                                                                                                                                               |
+| ------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                 | INT IDENTITY, PK               |                                                                                                                                                                                                                                                                                                                                                       |
+| mon_hoc_id         | INT, FK → `mon_hoc.id`         | Xoá môn thì xoá theo (`ON DELETE CASCADE`)                                                                                                                                                                                                                                                                                                            |
 | loai_thanh_phan_id | INT, FK → `loai_thanh_phan.id` | Chuyên cần / Bài tập / Thực hành / Kiểm tra giữa kỳ / Bài tập nhóm / Thi cuối kỳ / Khác — chọn từ danh sách cố định, **không cho gõ tự do** (đảm bảo dữ liệu nhất quán giữa các sinh viên để dùng làm đặc trưng ML). Tách thành bảng danh mục riêng thay vì ràng buộc CHECK vì cần thứ tự hiển thị trong menu, và thêm loại mới thì chỉ chèn một dòng |
-| trong_so_phan_tram | float                  | Tổng các dòng của cùng 1 môn phải = 100% mới được lưu                                                                                                                                                               |
-| diem               | float, **nullable**    | **Để trống nếu chưa nhập** — KHÔNG mặc định 0. Xem mục 3.4                                                                                                                                                          |
+| trong_so_phan_tram | float                          | Tổng các dòng của cùng 1 môn phải = 100% mới được lưu                                                                                                                                                                                                                                                                                                 |
+| diem               | float, **nullable**            | **Để trống nếu chưa nhập** — KHÔNG mặc định 0. Xem mục 3.4                                                                                                                                                                                                                                                                                            |
 
 ### 3.3 Quy tắc "Lần học" — tự động, không cho sinh viên chọn tay
 
@@ -171,17 +177,17 @@ nào trước đó (không chỉ học kỳ đang chọn):
 Đề cương §3.4 yêu cầu cơ sở dữ liệu lưu cả _kết quả dự đoán_ lẫn _lịch sử
 cảnh báo_, không chỉ dữ liệu học tập.
 
-| Trường          | Kiểu                      | Ghi chú                                       |
-| --------------- | ------------------------- | --------------------------------------------- |
-| id              | INT IDENTITY, PK          |                                               |
-| user_id         | INT, FK → `nguoi_dung.id` |                                               |
-| thoi_diem       | DATETIME2                 | Lúc chạy dự đoán                              |
-| muc_nguy_co | VARCHAR(20) | `thap` / `trung_binh` / `cao` — lưu mã, giao diện tự đổi ra nhãn tiếng Việt, cùng cách làm với `loai_lan_hoc` |
-| ty_le_phan_tram | DECIMAL(5,2)              | % khả năng bị cảnh báo học vụ                 |
-| ly_do_json      | NVARCHAR(MAX)             | Danh sách "Lý do chính", sinh từ SHAP (mục 5) |
-| goi_y_json      | NVARCHAR(MAX)             | Danh sách "Gợi ý cải thiện"                   |
-| da_gui_email    | BIT                       |                                               |
-| thoi_diem_gui   | DATETIME2, nullable       |                                               |
+| Trường          | Kiểu                      | Ghi chú                                                                                                       |
+| --------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| id              | INT IDENTITY, PK          |                                                                                                               |
+| user_id         | INT, FK → `nguoi_dung.id` |                                                                                                               |
+| thoi_diem       | DATETIME2                 | Lúc chạy dự đoán                                                                                              |
+| muc_nguy_co     | VARCHAR(20)               | `thap` / `trung_binh` / `cao` — lưu mã, giao diện tự đổi ra nhãn tiếng Việt, cùng cách làm với `loai_lan_hoc` |
+| ty_le_phan_tram | DECIMAL(5,2)              | % khả năng bị cảnh báo học vụ                                                                                 |
+| ly_do_json      | NVARCHAR(MAX)             | Danh sách "Lý do chính", sinh từ SHAP (mục 5)                                                                 |
+| goi_y_json      | NVARCHAR(MAX)             | Danh sách "Gợi ý cải thiện"                                                                                   |
+| da_gui_email    | BIT                       |                                                                                                               |
+| thoi_diem_gui   | DATETIME2, nullable       |                                                                                                               |
 
 - Mỗi lần tiến trình định kỳ (mục 8) chạy xong là **thêm một dòng mới**, không
   ghi đè dòng cũ. Nhờ vậy có lịch sử thật để đối chiếu, và về sau vẽ được diễn
@@ -200,13 +206,13 @@ Trang "Cảnh báo & Mục tiêu" cho sinh viên bấm đổi mục tiêu và co
 theo ngay, nên mỗi bản dự đoán phải sinh **đủ ba dòng** — một cho mỗi mục tiêu
 ở mục 7 — chứ không chỉ mục tiêu đang chọn.
 
-| Trường | Kiểu | Ghi chú |
-|---|---|---|
-| id | INT IDENTITY, PK | |
-| du_doan_id | INT, FK → `du_doan_canh_bao.id` | Xoá bản dự đoán thì xoá theo (`ON DELETE CASCADE`) |
-| ma_muc_tieu | VARCHAR(20) | `gioi` / `kha` / `qua_mon` |
-| ty_le | DECIMAL(5,2) | % khả năng đạt, hiển thị kèm thanh tiến độ |
-| ghi_chu | NVARCHAR(500) | Câu nhận xét hiện dưới thanh % |
+| Trường      | Kiểu                            | Ghi chú                                            |
+| ----------- | ------------------------------- | -------------------------------------------------- |
+| id          | INT IDENTITY, PK                |                                                    |
+| du_doan_id  | INT, FK → `du_doan_canh_bao.id` | Xoá bản dự đoán thì xoá theo (`ON DELETE CASCADE`) |
+| ma_muc_tieu | VARCHAR(20)                     | `gioi` / `kha` / `qua_mon`                         |
+| ty_le       | DECIMAL(5,2)                    | % khả năng đạt, hiển thị kèm thanh tiến độ         |
+| ghi_chu     | NVARCHAR(500)                   | Câu nhận xét hiện dưới thanh %                     |
 
 - Ràng buộc duy nhất trên (`du_doan_id`, `ma_muc_tieu`): một bản dự đoán không
   được có hai dòng cho cùng một mục tiêu.
@@ -237,11 +243,11 @@ theo ngay, nên mỗi bản dự đoán phải sinh **đủ ba dòng** — một
 
 ## 6. Phạm vi tính toán của từng loại cảnh báo (quan trọng — dễ nhầm)
 
-| Loại cảnh báo                                                                          | Phạm vi dữ liệu                                                                                      | Vị trí hiển thị                                     |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Nguy cơ trượt **theo từng môn**                                                        | Chỉ trong học kỳ đang chọn ở sidebar                                                                 | Cột trong bảng "Danh sách môn học", trang Dashboard |
-| Mức nguy cơ **tổng thể** (bị cảnh báo học vụ/thôi học) + Lý do chính + Gợi ý cải thiện | **Toàn bộ lịch sử** các học kỳ đã nhập, không phụ thuộc lựa chọn sidebar                             | Trang "Cảnh báo & Mục tiêu"                         |
-| Biểu đồ "Xu hướng điểm trung bình học kỳ"                                              | **Toàn bộ** các học kỳ đã có dữ liệu (điểm hiện tại theo sidebar được đánh dấu nổi bật trên biểu đồ) | Trang Dashboard                                     |
+| Loại cảnh báo                                                                          | Phạm vi dữ liệu                                                                                      | Vị trí hiển thị                                       |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Nguy cơ trượt **theo từng môn**                                                        | Chỉ trong học kỳ đang chọn ở sidebar                                                                 | Cột trong bảng "Danh sách môn học", trang Dashboard   |
+| Mức nguy cơ **tổng thể** (bị cảnh báo học vụ/thôi học) + Lý do chính + Gợi ý cải thiện | **Toàn bộ lịch sử** các học kỳ đã nhập, không phụ thuộc lựa chọn sidebar                             | Trang "Cảnh báo & Mục tiêu"                           |
+| Biểu đồ "Xu hướng điểm trung bình học kỳ"                                              | **Toàn bộ** các học kỳ đã có dữ liệu (điểm hiện tại theo sidebar được đánh dấu nổi bật trên biểu đồ) | Trang Dashboard                                       |
 | **GPA tích luỹ toàn khoá** (một lần học/môn — xem 3.5)                                 | **Toàn bộ lịch sử**, không phụ thuộc sidebar                                                         | Trang "Cảnh báo & Mục tiêu", khung riêng dưới tiêu đề |
 
 Ở trang "Cảnh báo & Mục tiêu", sidebar **không hiển thị** khối "Kỳ học đang
@@ -335,23 +341,23 @@ bình":
 
 Hai bảng quy đổi **khác nhau, không được lẫn**:
 
-| Bảng                       | Áp cho                        | Đầu vào              | Đầu ra                   | Ai quy định                              |
-| -------------------------- | ----------------------------- | -------------------- | ------------------------ | ---------------------------------------- |
-| Thang điểm chữ (mục 9 trên) | **từng môn**                  | điểm môn DH10        | A/B/C/D/E và 4/3/2/1/0   | trường (mốc 8.5 / 7.0 / 5.5 / 4.0)       |
-| Xếp loại học lực (mục này) | **GPA** kỳ / năm / tích luỹ   | GPA **DH4**          | Xuất sắc … Kém           | Bộ GD&ĐT — Thông tư 08/2021, Điều 10 §5  |
+| Bảng                        | Áp cho                      | Đầu vào       | Đầu ra                 | Ai quy định                             |
+| --------------------------- | --------------------------- | ------------- | ---------------------- | --------------------------------------- |
+| Thang điểm chữ (mục 9 trên) | **từng môn**                | điểm môn DH10 | A/B/C/D/E và 4/3/2/1/0 | trường (mốc 8.5 / 7.0 / 5.5 / 4.0)      |
+| Xếp loại học lực (mục này)  | **GPA** kỳ / năm / tích luỹ | GPA **DH4**   | Xuất sắc … Kém         | Bộ GD&ĐT — Thông tư 08/2021, Điều 10 §5 |
 
 Khung xếp loại theo DH4 (Khoản 5 Điều 10 Quy chế đào tạo trình độ đại học,
 ban hành kèm Thông tư 08/2021/TT-BGDĐT; áp dụng cho cả điểm trung bình học
 kỳ, năm học và tích luỹ; cũng là căn cứ xếp loại bằng tốt nghiệp):
 
-| Xếp loại   | DH4            |
-| ---------- | -------------- |
-| Xuất sắc   | 3.6 – 4.0      |
-| Giỏi       | 3.2 – cận 3.6  |
-| Khá        | 2.5 – cận 3.2  |
-| Trung bình | 2.0 – cận 2.5  |
-| Yếu        | 1.0 – cận 2.0  |
-| Kém        | dưới 1.0       |
+| Xếp loại   | DH4           |
+| ---------- | ------------- |
+| Xuất sắc   | 3.6 – 4.0     |
+| Giỏi       | 3.2 – cận 3.6 |
+| Khá        | 2.5 – cận 3.2 |
+| Trung bình | 2.0 – cận 2.5 |
+| Yếu        | 1.0 – cận 2.0 |
+| Kém        | dưới 1.0      |
 
 - Xếp loại tính **duy nhất trên DH4**. DH10 chỉ hiển thị kèm để tham khảo,
   **không** gắn nhãn xếp loại riêng theo DH10.
@@ -440,3 +446,162 @@ FastAPI    →  cùng lớp repository đó       →  SQL Server
    Form dùng đúng năm học/học kỳ theo sidebar, không nhập lại.
 4. **Cảnh báo & Mục tiêu học tập** — mức nguy cơ tổng thể (toàn lịch sử) +
    lý do + gợi ý cải thiện; phần nhập mục tiêu học tập + % khả năng đạt.
+
+---
+
+## 12. Hệ thống cảnh báo sớm — thiết kế hiện hành (11/2026)
+
+Chốt ngày 13–14/11/2026. Thay cho §3.6, §3.7, §8, §10.1.
+
+### 12.1 Hệ thống làm gì
+
+- **Dự đoán, không tra luật.** Giao diện cũ tính GPA rồi so ngưỡng QĐ 600 —
+  việc đó if-else là đủ. Hệ thống mới dùng dữ liệu đến học kỳ k để dự đoán
+  **học kỳ k+1** (bị cảnh báo học tập, bị buộc thôi học) và dự đoán **trượt
+  môn ngay sau giữa kỳ**, khi kết quả chưa có. Chi tiết mô hình: `ml/`.
+- **Cảnh báo chủ động.** Gửi email khi có nguy cơ, nhắc cập nhật theo mốc
+  học kỳ, không chờ sinh viên tự vào xem (đề cương 2.3).
+- **Nguồn dữ liệu.** Sinh viên mở trang Xem điểm của online.dlu.edu.vn, chọn
+  mục **"Xem điểm sinh viên"**, nhấn Ctrl+A, Ctrl+C rồi đưa vào hệ thống; `ml/doc_cong_thong_tin.py` đọc ra số
+  liệu tổng kết từng học kỳ (lấy y như trường, không tự tính GPA). Hệ thống
+  KHÔNG giữ mật khẩu cổng thông tin và KHÔNG lưu văn bản gốc. Điểm giữa kỳ
+  không có ngày cố định nên sinh viên nhập tay khi biết.
+- **Ngoài phạm vi hiện tại:** giao diện giảng viên (tải Excel cả lớp) — làm
+  sau nếu còn thời gian.
+
+### 12.2 Kiến trúc
+
+```
+Trình duyệt ─► Streamlit (giao diện, cổng 8501)
+                  │  HTTP + token JWT
+                  ▼
+               FastAPI (cổng 8000) — chạy ĐÚNG 1 tiến trình (1 worker)
+                ├─ dich_vu/   logic: đọc dữ liệu, dự đoán, gợi ý, lưu, soạn email
+                │    ├─ ml/          bộ đọc, đặc trưng, mô hình models/*.joblib
+                │    └─ db/repo.py   → SQL Server HT_CANHBAOHOCTAP
+                ├─ APScheduler       tác vụ định kỳ (§12.5), cùng tiến trình
+                └─ SMTP Gmail        gửi email (§12.6)
+```
+
+- Streamlit **chỉ gọi API**, không gọi thẳng `ml/` hay `db/`. Mọi chức năng
+  test được bằng Postman (đề cương 3.5).
+- Logic nằm ở `dich_vu/`, endpoint chỉ nhận / trả dữ liệu, để tác vụ định kỳ
+  dùng lại đúng logic đó.
+- Chỉ 1 worker: nhiều worker thì mỗi tác vụ định kỳ chạy nhiều lần, email bị
+  gửi trùng.
+- Train lại mô hình vẫn chạy tay (`ml/so_sanh.py` rồi `ml/mo_hinh_cuoi.py`),
+  không qua API. Tác vụ 3 tự phát hiện mô hình mới.
+- `thu_nghiem.py` giữ làm công cụ kiểm thử dữ liệu / mô hình, không đăng nhập.
+
+### 12.3 Cơ sở dữ liệu
+
+Script: `db/nang_cap_canh_bao.sql` — chạy sau `db/hethongcanhbao.sql`, chỉ
+thêm, chạy lại nhiều lần vẫn an toàn. Bảng của giao diện cũ giữ nguyên tới
+khi giao diện mới thay xong.
+
+| Bảng               | Một dòng là                                         | Cột chính                                                                                                                                                      |
+| ------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nguoi_dung` (sửa) | một tài khoản                                       | thêm `nhan_email` (mặc định 1); niên khoá, số kỳ, thang điểm được để trống — form đăng ký mới chỉ hỏi email, mật khẩu, họ tên                                  |
+| `lan_cap_nhat`     | một lần sinh viên đưa dữ liệu vào                   | `user_id, thoi_diem, nguon (cong_thong_tin / nhap_tay), nam_nhap_hoc, nganh, he_dao_tao`                                                                       |
+| `hoc_ky_tong_ket`  | một học kỳ đã có điểm, của một lần cập nhật         | `thu_tu, nam_bat_dau, hoc_ky, tc_dat_hk, dtb_hk, tctl, tc_dang_ky, dtb_tl, drl, muc_vang, hoc_phi`                                                             |
+| `mon_dang_hoc`     | một môn kỳ đang học                                 | `stt, ma_mon, ten_mon, so_tc, diem_gk, ti_trong_gk, vang_lt, vang_th`                                                                                          |
+| `du_doan`          | một kết quả: cảnh báo, thôi học, hoặc trượt một môn | `muc_tieu, mon_dang_hoc_id, cho_thu_tu, cho_ten, diem_nguy_co, nguong, bao_dong, muc_nguy_co, ly_do_json, goi_y_json, ghi_chu, phuong_phap, phien_ban_mo_hinh` |
+| `email_da_gui`     | một email (đang chờ, đã gửi hoặc lỗi)               | `loai, moc, lan_nhac, du_doan_id, trang_thai, hen_gui, so_lan_thu, tieu_de, noi_dung, noi_dung_loi`                                                            |
+
+Quy ước:
+
+- **Lưu bản mới, không ghi đè.** Mỗi lần cập nhật là một `lan_cap_nhat` mới
+  kèm đủ học kỳ và môn. So được với lần trước, và biết mỗi dự đoán dựa trên
+  số liệu nào.
+- Cột học kỳ / môn trùng tên cột bảng trong `ml/` để đọc ra là đưa thẳng vào
+  `dac_trung.chuan_bi_du_lieu()`. `muc_vang`, `hoc_phi`, `vang_lt`, `vang_th`
+  lưu nguyên lựa chọn của form (`ml/doc_form.py`).
+- `muc_nguy_co`: tạm chỉ `cao` (điểm ≥ ngưỡng F2) / `thap`; `chua_du_doan`
+  khi môn chưa có điểm hoặc tỉ trọng giữa kỳ. Mức `trung_binh` chờ duyệt.
+- `phien_ban_mo_hinh` = thời điểm train lưu trong file `.joblib`; tác vụ 3
+  so với giá trị này để biết đã có mô hình mới.
+- Xoá tài khoản thì xoá dây chuyền mọi dữ liệu của người đó.
+
+### 12.4 API (FastAPI)
+
+Đăng nhập trả **token JWT** (hết hạn sau 8 giờ, mật khẩu kiểm bằng bcrypt
+như hiện nay); các API còn lại gửi kèm `Authorization: Bearer <token>`.
+
+| Phương thức, đường dẫn   | Đăng nhập | Làm gì                                                                                                                                                 |
+| ------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /auth/dang-ky`     | không     | Tạo tài khoản: email, mật khẩu, họ tên                                                                                                                 |
+| `POST /auth/dang-nhap`   | không     | Trả token                                                                                                                                              |
+| `GET /toi`, `PATCH /toi` | có        | Xem hồ sơ; bật / tắt `nhan_email`                                                                                                                      |
+| `POST /du-lieu/doc`      | có        | Nhận văn bản trang Xem điểm → bảng học kỳ, bảng môn, tên học kỳ, cảnh báo dữ liệu (`canh_bao_du_lieu`). **Không lưu.** Văn bản sai → 422 kèm thông báo |
+| `POST /du-lieu`          | có        | Lưu một lần cập nhật (bảng đã sửa, mức vắng, học phí, nguồn). Dữ liệu sai (`doc_form.kiem_tra`) → 422 kèm danh sách chỗ sai                            |
+| `GET /du-lieu/moi-nhat`  | có        | Lần cập nhật gần nhất, để điền sẵn                                                                                                                     |
+| `POST /du-doan`          | có        | Dự đoán 3 mục tiêu + gợi ý trên lần cập nhật mới nhất, lưu `du_doan`, xếp email cảnh báo nếu cần (§12.6)                                               |
+| `GET /ket-qua/moi-nhat`  | có        | Kết quả gần nhất                                                                                                                                       |
+| `GET /ket-qua/lich-su`   | có        | Các lần dự đoán trước (vẽ nguy cơ theo thời gian)                                                                                                      |
+| `POST /hen-nhac`         | có        | "Nhắc tôi sau" 7 hoặc 14 ngày → một dòng `email_da_gui` loại `hen_nhac`                                                                                |
+| `GET /email/lich-su`     | có        | Email đã gửi (lịch sử cảnh báo)                                                                                                                        |
+| `GET /suc-khoe`          | không     | Trạng thái API, CSDL, mô hình đang dùng (phương pháp, thời điểm train)                                                                                 |
+
+### 12.5 Tác vụ định kỳ (APScheduler, trong tiến trình FastAPI)
+
+| Tác vụ           | Lịch                | Làm gì                                                                                                                                                                                                                                       |
+| ---------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Gửi hàng đợi  | 5 phút / lần        | Gửi các dòng `email_da_gui` `cho_gui` có `hen_gui` trống hoặc đã đến hạn; thành công → `da_gui` + `thoi_diem_gui`; lỗi → tăng `so_lan_thu`, quá 3 lần → `loi` + `noi_dung_loi`                                                               |
+| 2. Nhắc theo mốc | 7 giờ sáng mỗi ngày | Đọc `config/moc_hoc_ky.json`. Đến ngày `bat_dau` của một mốc: xếp nhắc lần 1 cho sinh viên `nhan_email = 1` chưa cập nhật từ ngày đó; sau 7 ngày: nhắc lần 2 cho ai vẫn chưa cập nhật. Tối đa 2 lần mỗi mốc (chặn bằng chỉ mục `UX_edg_moc`) |
+| 3. Mô hình mới   | 2 giờ sáng mỗi ngày | Nếu thời điểm train trong `models/*.joblib` mới hơn `phien_ban_mo_hinh` của các dự đoán gần nhất: dự đoán lại lần cập nhật mới nhất của mọi sinh viên, lưu, xếp email cho ai **mới** có nguy cơ cao                                          |
+
+`config/moc_hoc_ky.json` — ngày lấy theo **kế hoạch đào tạo năm học** của
+trường (QĐ 600 Điều 14.3: tuần thi nằm trong kế hoạch này), không theo ngày
+có điểm (không cố định):
+
+```json
+[
+  {
+    "moc": "HK1 2026–2027 giữa kỳ",
+    "loai": "nhac_giua_ky",
+    "bat_dau": "<ngày theo kế hoạch đào tạo>"
+  },
+  {
+    "moc": "HK1 2026–2027 sau thi",
+    "loai": "nhac_cuoi_ky",
+    "bat_dau": "<2–3 tuần sau tuần thi cuối>"
+  }
+]
+```
+
+### 12.6 Email
+
+- Mọi email đi qua **hàng đợi** `email_da_gui`: API và tác vụ chỉ thêm dòng
+  `cho_gui`, tác vụ 1 mới gửi. Gmail chậm / lỗi thì không làm treo API và
+  được gửi lại.
+- **Gửi cảnh báo khi** kết quả là `cao` mà lần dự đoán trước không phải `cao`
+  (hoặc là lần đầu). Vẫn `cao` như lần trước thì không gửi lại.
+- Không gửi gì cho tài khoản `nhan_email = 0`. Email nào cũng có dòng hướng
+  dẫn tắt nhận thư trong trang tài khoản.
+- Nội dung email cảnh báo: học kỳ được dự đoán, mức nguy cơ, lý do chính,
+  gợi ý cải thiện, câu "chỉ để tham khảo, không thay thế quyết định học vụ".
+  Không ghi điểm nguy cơ dạng phần trăm (chưa hiệu chỉnh).
+- Gửi từ một tài khoản Gmail của nhóm qua SMTP bằng **mật khẩu ứng dụng**
+  (app password), không dùng mật khẩu thật.
+
+### 12.7 Cấu hình (`.env`, không commit; mẫu ở `.env.example`)
+
+| Biến                                                                                  | Dùng cho                                                            |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `HT_DB_SERVER`, `HT_DB_NAME`, `HT_DB_URL`                                             | Kết nối CSDL (đã có trong `db/ket_noi.py`)                          |
+| `HT_JWT_SECRET`, `HT_JWT_HET_HAN_GIO`                                                 | Ký token, thời hạn (mặc định 8)                                     |
+| `HT_SMTP_HOST`, `HT_SMTP_PORT`, `HT_SMTP_USER`, `HT_SMTP_APP_PASSWORD`, `HT_EMAIL_TU` | Gửi email                                                           |
+| `HT_API_URL`                                                                          | Địa chỉ FastAPI mà Streamlit gọi (mặc định `http://localhost:8000`) |
+| `HT_MOC_HOC_KY`                                                                       | Đường dẫn file mốc (mặc định `config/moc_hoc_ky.json`)              |
+
+### 12.8 Thứ tự làm và phân công
+
+| Việc                                                                                               | Ai       |
+| -------------------------------------------------------------------------------------------------- | -------- |
+| Hàm truy cập dữ liệu cho 5 bảng mới trong `db/repo.py`                                             | Thạch    |
+| Gợi ý cải thiện (luật: điểm cuối kỳ cần đạt để qua môn; ĐTB kỳ tới cần đạt để không dưới ngưỡng)   | Thạch    |
+| FastAPI (§12.4), `dich_vu/`, tác vụ định kỳ (§12.5), email (§12.6)                                 | Huy      |
+| Giao diện Streamlit có đăng nhập gọi API (3 bước Dữ liệu → Kiểm tra → Kết quả như `thu_nghiem.py`) | Sau cùng |
+
+Còn chờ duyệt (không chặn việc trên): mức nguy cơ `trung_binh`, giao diện
+nhập tay từ đầu, nội dung gợi ý cải thiện cụ thể.
