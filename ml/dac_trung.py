@@ -90,6 +90,14 @@ def _doc_du_lieu(duong_dan, _thoi_diem_sua):
         sinh_vien, bang_hoc_ky, bang_mon = doc_cong_thong_tin.doc_file(duong_dan)
     else:
         sinh_vien, bang_hoc_ky, bang_mon = form.doc_form(duong_dan)
+    return chuan_bi_du_lieu(sinh_vien, bang_hoc_ky, bang_mon)
+
+
+def chuan_bi_du_lieu(sinh_vien, bang_hoc_ky, bang_mon):
+    """3 bảng của bộ đọc -> (bảng học kỳ, bảng môn) đã gán nhãn, sinh viên hợp lệ.
+
+    Tách riêng để dùng được cả với bảng người dùng vừa sửa trên giao diện.
+    """
     hop_le = sinh_vien.index[sinh_vien["hop_le"]]
     bang = gan_nhan_hoc_ky(bang_hoc_ky[bang_hoc_ky["ma_sv"].isin(hop_le)])
     # gan_nhan_hoc_ky đã sắp theo (ma_sv, hoc_ky); merge "inner" giữ thứ tự đó
@@ -201,19 +209,21 @@ def dac_trung_mon(bang, mon):
     return X
 
 
-def dac_trung_du_doan(muc_tieu, duong_dan=None):
+def dac_trung_du_doan(muc_tieu, duong_dan=None, du_lieu=None):
     """Đặc trưng để DỰ ĐOÁN (không cần nhãn), cùng bộ cột với tao_du_lieu().
 
     - "canh_bao" / "thoi_hoc": học kỳ gần nhất của mỗi sinh viên, để dự đoán
       học kỳ kế tiếp (lúc huấn luyện học kỳ này bị bỏ vì chưa có nhãn).
     - "truot_mon": mọi môn của học kỳ gần nhất, kể cả môn chưa có kết quả.
 
+    `du_lieu`: (bảng học kỳ, bảng môn) từ chuan_bi_du_lieu(), dùng thay cho file.
+
     Trả về (X, thong_tin): thong_tin có ma_sv, hoc_ky (và stt_mon, ten_mon
     với "truot_mon"), cùng chỉ số với X.
     """
     if muc_tieu not in MUC_TIEU:
         raise ValueError(f"muc_tieu phải là một trong {MUC_TIEU}, nhận {muc_tieu!r}")
-    bang, mon = doc_du_lieu(duong_dan)
+    bang, mon = doc_du_lieu(duong_dan) if du_lieu is None else du_lieu
     if muc_tieu == "truot_mon":
         X = dac_trung_mon(bang, mon)
         return X, mon[["ma_sv", "hoc_ky", "stt_mon", "ten_mon"]]

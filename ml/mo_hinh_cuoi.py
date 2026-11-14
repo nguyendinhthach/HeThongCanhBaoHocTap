@@ -102,8 +102,9 @@ def tai(muc_tieu, thu_muc=THU_MUC_MO_HINH):
     return joblib.load(duong_dan)
 
 
-def du_doan(duong_dan, muc_tieu, thu_muc=THU_MUC_MO_HINH, so_ly_do=3):
-    """Dự đoán cho file form `duong_dan`.
+def du_doan(duong_dan, muc_tieu, thu_muc=THU_MUC_MO_HINH, so_ly_do=3, du_lieu=None):
+    """Dự đoán cho file `duong_dan`, hoặc cho `du_lieu` (kết quả của
+    dac_trung.chuan_bi_du_lieu, khi bảng đến từ giao diện thay vì file).
 
     - "canh_bao" / "thoi_hoc": mỗi sinh viên hợp lệ một dòng, dự đoán cho học
       kỳ kế tiếp học kỳ gần nhất đã học xong.
@@ -122,7 +123,7 @@ def du_doan(duong_dan, muc_tieu, thu_muc=THU_MUC_MO_HINH, so_ly_do=3):
     if muc_tieu not in dac_trung.MUC_TIEU:
         raise ValueError(f"muc_tieu phải là một trong {dac_trung.MUC_TIEU}")
     goi = tai("truot_mon" if muc_tieu == "truot_mon" else "canh_bao", thu_muc)
-    X, thong_tin = dac_trung.dac_trung_du_doan(muc_tieu, duong_dan)
+    X, thong_tin = dac_trung.dac_trung_du_doan(muc_tieu, duong_dan, du_lieu)
     X = X[goi["cot"]]            # đúng thứ tự cột lúc train
 
     xac_suat = pd.Series(goi["mo_hinh"].predict_proba(X)[:, 1], index=X.index)
@@ -137,13 +138,13 @@ def du_doan(duong_dan, muc_tieu, thu_muc=THU_MUC_MO_HINH, so_ly_do=3):
     ket_qua["ghi_chu"] = ""
 
     if muc_tieu == "truot_mon":
-        # Lúc train môn nào cũng có điểm giữa kỳ; thiếu thì mô hình đoán bừa
+        # Lúc train môn nào cũng có điểm và tỉ trọng giữa kỳ; thiếu thì mô hình đoán bừa
         # (đã gặp: kỳ đang học chưa có điểm -> báo mọi môn "chắc trượt"), nên không dự đoán
-        chua_co = X["diem_gk"].isna()
+        chua_co = X["diem_gk"].isna() | X["ti_trong_gk"].isna()
         ket_qua.loc[chua_co, "xac_suat"] = np.nan
         ket_qua.loc[chua_co, "bao_dong"] = False
         ket_qua.loc[chua_co, "ly_do"] = pd.Series([[]] * int(chua_co.sum()), index=ket_qua.index[chua_co])
-        ket_qua.loc[chua_co, "ghi_chu"] = "Chưa có điểm giữa kỳ nên chưa dự đoán"
+        ket_qua.loc[chua_co, "ghi_chu"] = "Chưa có điểm giữa kỳ hoặc tỉ trọng nên chưa dự đoán"
 
     # Ghi rõ dự đoán CHO học kỳ nào và DỰA TRÊN học kỳ nào: cảnh báo / thôi học
     # lấy dữ liệu kỳ k để đoán kỳ k+1; trượt môn đoán chính kỳ của môn, dựa trên
