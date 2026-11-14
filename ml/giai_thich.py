@@ -14,6 +14,7 @@ Chạy:  python ml/giai_thich.py     # vẽ lại biểu đồ SHAP từ mô hì
 
 import os
 import sys
+import warnings
 
 import matplotlib
 matplotlib.use("Agg")
@@ -85,7 +86,10 @@ def gia_tri_shap(mo_hinh, X):
         giai_thich = shap.TreeExplainer(mo_hinh)
     except Exception as loi:
         raise ValueError(f"SHAP TreeExplainer không hỗ trợ {type(mo_hinh).__name__}") from loi
-    gia_tri = giai_thich.shap_values(X)
+    with warnings.catch_warnings():
+        # LightGBM + SHAP mới báo đổi định dạng kết quả; bên dưới đã chuẩn hoá mọi dạng
+        warnings.simplefilter("ignore", UserWarning)
+        gia_tri = giai_thich.shap_values(X)
     if isinstance(gia_tri, list):
         gia_tri = gia_tri[1]
     gia_tri = np.asarray(gia_tri)

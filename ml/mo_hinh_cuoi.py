@@ -26,6 +26,7 @@ import sys
 from datetime import datetime
 
 import joblib
+import numpy as np
 import pandas as pd
 
 import dac_trung
@@ -106,9 +107,12 @@ def du_doan(duong_dan, muc_tieu, thu_muc=THU_MUC_MO_HINH, so_ly_do=3):
 
     - "canh_bao" / "thoi_hoc": mỗi sinh viên hợp lệ một dòng, dự đoán cho học
       kỳ kế tiếp học kỳ gần nhất đã học xong.
-    - "truot_mon": mỗi môn của học kỳ gần nhất một dòng.
+    - "truot_mon": mỗi môn của học kỳ gần nhất một dòng; môn chưa có điểm giữa
+      kỳ thì xac_suat trống, không báo động, ghi_chu nói rõ.
 
-    Trả về DataFrame: thông tin (ma_sv, hoc_ky, ...), xac_suat, bao_dong
+    Trả về DataFrame: ma_sv, du_doan_cho_hk (học kỳ được dự đoán), dua_tren_hk
+    (học kỳ cuối có dữ liệu dùng để dự đoán), thông tin môn với "truot_mon",
+    xac_suat, bao_dong
     (xac_suat >= ngưỡng F2 đã chọn), ly_do (list chuỗi; rỗng khi không báo
     động — đặc trưng đẩy nguy cơ 1% lên 2% không phải "lý do" để nói).
 
@@ -130,6 +134,24 @@ def du_doan(duong_dan, muc_tieu, thu_muc=THU_MUC_MO_HINH, so_ly_do=3):
     ket_qua["bao_dong"] = xac_suat >= goi["nguong"]
     ly_do = giai_thich.ly_do(goi["mo_hinh"], X, so_ly_do) if len(X) else []
     ket_qua["ly_do"] = [ld if bd else [] for ld, bd in zip(ly_do, ket_qua["bao_dong"])]
+    ket_qua["ghi_chu"] = ""
+
+    if muc_tieu == "truot_mon":
+        # Lúc train môn nào cũng có điểm giữa kỳ; thiếu thì mô hình đoán bừa
+        # (đã gặp: kỳ đang học chưa có điểm -> báo mọi môn "chắc trượt"), nên không dự đoán
+        chua_co = X["diem_gk"].isna()
+        ket_qua.loc[chua_co, "xac_suat"] = np.nan
+        ket_qua.loc[chua_co, "bao_dong"] = False
+        ket_qua.loc[chua_co, "ly_do"] = pd.Series([[]] * int(chua_co.sum()), index=ket_qua.index[chua_co])
+        ket_qua.loc[chua_co, "ghi_chu"] = "Chưa có điểm giữa kỳ nên chưa dự đoán"
+
+    # Ghi rõ dự đoán CHO học kỳ nào và DỰA TRÊN học kỳ nào: cảnh báo / thôi học
+    # lấy dữ liệu kỳ k để đoán kỳ k+1; trượt môn đoán chính kỳ của môn, dựa trên
+    # lịch sử đến kỳ trước đó. Cả 3 mục tiêu cùng nói về một học kỳ sắp tới.
+    hoc_ky = ket_qua.pop("hoc_ky")
+    ky_du_doan = hoc_ky if muc_tieu == "truot_mon" else hoc_ky + 1
+    ket_qua.insert(1, "du_doan_cho_hk", ky_du_doan)
+    ket_qua.insert(2, "dua_tren_hk", ky_du_doan - 1)
     return ket_qua
 
 
