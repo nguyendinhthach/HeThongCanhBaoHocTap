@@ -114,6 +114,9 @@ def test_nhap_diem_giua_ky_thi_du_doan_duoc_mon():
     bang = at.dataframe[0].value
     assert not str(bang.loc[0, "Kết quả"]).startswith("Chưa có")
     assert str(bang.loc[1, "Kết quả"]).startswith("Chưa có")
+    # 0,5 × 1,5 + 0,5 × CK >= 4 -> cần 6,5 điểm thi cuối kỳ
+    assert "6,5 điểm thi cuối kỳ" in bang.loc[0, "Gợi ý"]
+    assert bang.loc[1, "Gợi ý"] == ""
 
 
 def test_sua_so_lieu_kem_bao_nguy_co_cao():
@@ -124,7 +127,10 @@ def test_sua_so_lieu_kem_bao_nguy_co_cao():
     at.session_state["hk_sua"] = hk
     at.run()
     assert not at.exception, at.exception
-    assert "Nguy cơ cao" in toan_bo_chu(at)
+    chu = toan_bo_chu(at)
+    assert "Nguy cơ cao" in chu
+    # Nợ 27 TC, ĐTB học kỳ 0,3 -> có gợi ý cụ thể
+    assert "quá mức 24" in chu and "ĐTB học kỳ vừa rồi chỉ 0,3" in chu, chu
 
 
 def test_du_lieu_sua_sai_khong_doan():

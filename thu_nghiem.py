@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(THU_MUC_GOC, "ml"))
 import dac_trung
 import doc_cong_thong_tin as cong
 import doc_form as form
+import goi_y
 import mo_hinh_cuoi
 from gan_nhan import (NGUONG_DTB_TICH_LUY, SO_LAN_CANH_BAO_THOI_HOC, gan_nhan_hoc_ky,
                       trinh_do_nam)
@@ -262,11 +263,16 @@ def trang_ket_qua():
     if tm.empty:
         st.write("Không có môn nào để dự đoán.")
     else:
+        mon = st.session_state.mon_sua.set_index("stt_mon")
+        goi_y_tung_mon = [
+            goi_y.goi_y_mon(*(mon.loc[stt, c] for c in ["diem_gk", "ti_trong_gk", "vang_lt", "vang_th"]))
+            for stt in tm["stt_mon"]]
         bang = pd.DataFrame({
             "Môn": tm["ten_mon"],
             "Kết quả": np.where(tm["ghi_chu"] != "", tm["ghi_chu"],
                                 np.where(tm["bao_dong"], "Nguy cơ cao", "Nguy cơ thấp")),
             "Lý do chính": tm["ly_do"].map("; ".join),
+            "Gợi ý": [" ".join(g) for g in goi_y_tung_mon],
         })
         st.dataframe(bang, hide_index=True, width="stretch")
 
@@ -274,7 +280,13 @@ def trang_ket_qua():
     bieu_do_xu_huong(hk, ten_ky)
 
     st.subheader("Gợi ý cải thiện")
-    st.caption("Chưa có nội dung: luật gợi ý sẽ làm sau.")
+    cac_goi_y = goi_y.goi_y_hoc_ky(hk)
+    if cac_goi_y:
+        st.markdown("\n".join(f"- {g}" for g in cac_goi_y))
+    else:
+        st.write("Chưa có điều gì cần lưu ý thêm cho học kỳ tới.")
+    st.caption("Gợi ý tính theo số liệu bạn đã nhập và quy chế QĐ 600; gợi ý cho từng môn nằm ở bảng "
+               "Trượt từng môn.")
 
     with st.expander("Số liệu kỹ thuật (để kiểm thử)"):
         st.write(f"Mô hình cảnh báo: {mo_hinh_cuoi.tai('canh_bao')['phuong_phap']}, "
