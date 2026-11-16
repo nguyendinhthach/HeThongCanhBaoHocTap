@@ -222,20 +222,35 @@ def doc_van_ban(van_ban):
     return sinh_vien, bang_hoc_ky, bang_mon
 
 
-def ten_hoc_ky(van_ban):
-    """{số thứ tự học kỳ như trong bảng: "HK1 2026–2027"}, kể cả kỳ đang học
-    và kỳ kế tiếp sau kỳ cuối (nếu trang chưa có kỳ đang học)."""
+def nam_ky_hoc_ky(van_ban):
+    """{số thứ tự học kỳ như trong bảng: (năm bắt đầu, kỳ trong năm)}, kể cả kỳ
+    đang học và kỳ kế tiếp sau kỳ cuối (nếu trang chưa có kỳ đang học).
+    Không rõ năm (mất dòng "Năm học") thì (None, kỳ)."""
     _, cac_hoc_ky = phan_tich(van_ban)
     da_xong = [hk for hk in cac_hoc_ky if _co_tong_ket(hk)]
     theo_thu_tu = da_xong + [hk for hk in cac_hoc_ky if hk not in da_xong][-1:]
-    ten = {k: _ten_mot_ky(hk["ky"], hk["nam"]) for k, hk in enumerate(theo_thu_tu, start=1)}
-    cuoi = theo_thu_tu[-1]
-    if cuoi["nam"] is None:
-        ten[len(theo_thu_tu) + 1] = "học kỳ kế tiếp"
-        return ten
-    nam, ky = (cuoi["nam"], 2) if cuoi["ky"] == 1 else (cuoi["nam"] + 1, 1)
-    ten[len(theo_thu_tu) + 1] = _ten_mot_ky(ky, nam)
-    return ten
+    nam_ky = {k: (hk["nam"], hk["ky"]) for k, hk in enumerate(theo_thu_tu, start=1)}
+    nam_ky[len(theo_thu_tu) + 1] = ky_ke_tiep(*nam_ky[len(theo_thu_tu)])
+    return nam_ky
+
+
+def ky_ke_tiep(nam, ky):
+    """(năm, kỳ) của học kỳ chính kế tiếp: HK1 -> HK2 cùng năm, HK2 -> HK1 năm sau."""
+    if nam is None:
+        return None, None
+    return (nam, 2) if ky == 1 else (nam + 1, 1)
+
+
+def ten_hoc_ky(van_ban):
+    """{số thứ tự học kỳ như trong bảng: "HK1 2026–2027"}, như nam_ky_hoc_ky()."""
+    return {k: ten_mot_ky(ky, nam) for k, (nam, ky) in nam_ky_hoc_ky(van_ban).items()}
+
+
+def ten_mot_ky(ky, nam):
+    """Tên hiển thị một học kỳ: "HK1 2026–2027"; thiếu thông tin thì rút gọn."""
+    if ky is None:
+        return "học kỳ kế tiếp"
+    return _ten_mot_ky(ky, nam)
 
 
 def _co_tong_ket(hoc_ky):
