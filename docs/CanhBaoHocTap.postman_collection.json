@@ -1,0 +1,448 @@
+{
+  "info": {
+    "_postman_id": "e43b9800-2785-4e49-8bef-d6cb88c58ad1",
+    "name": "Hệ thống cảnh báo học tập",
+    "description": "Luồng kiểm thử API: đăng ký, đăng nhập lấy token, đọc/lưu dữ liệu học tập, dự đoán và kiểm tra email. Trước khi chạy, điền vanBanHocTap bằng toàn bộ văn bản trang Xem điểm; không lưu mật khẩu thật trong collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "email",
+      "value": "sinhvien@example.test"
+    },
+    {
+      "key": "password",
+      "value": "doi-mat-khau-khi-su-dung"
+    },
+    {
+      "key": "hoTen",
+      "value": "Sinh viên kiểm thử"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "vanBanHocTap",
+      "value": ""
+    },
+    {
+      "key": "thongTin",
+      "value": "{}"
+    },
+    {
+      "key": "hocKy",
+      "value": "[]"
+    },
+    {
+      "key": "mon",
+      "value": "[]"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Đăng ký tài khoản",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"mat_khau\": \"{{password}}\",\n  \"ho_ten\": \"{{hoTen}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/dang-ky",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "dang-ky"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tài khoản được tạo', function () {",
+              "  pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Đăng nhập và lưu token",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "username",
+              "value": "{{email}}",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "{{password}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/dang-nhap",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "dang-nhap"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Đăng nhập thành công', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Xem hồ sơ",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/toi",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "toi"
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Bật/tắt nhận email",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nhan_email\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/toi",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "toi"
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Đọc trước dữ liệu học tập",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/du-lieu/doc",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "du-lieu",
+            "doc"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.request.body.update({",
+              "  mode: 'raw',",
+              "  raw: JSON.stringify({ van_ban: pm.collectionVariables.get('vanBanHocTap') || '' })",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Đọc trước dữ liệu thành công', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  const duLieu = pm.response.json();",
+              "  pm.collectionVariables.set('thongTin', JSON.stringify(duLieu.thong_tin));",
+              "  pm.collectionVariables.set('hocKy', JSON.stringify(duLieu.hoc_ky));",
+              "  pm.collectionVariables.set('mon', JSON.stringify(duLieu.mon));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Lưu thông tin học kỳ",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nguon\": \"cong_thong_tin\",\n  \"thong_tin\": {{thongTin}},\n  \"hoc_ky\": {{hocKy}},\n  \"mon\": {{mon}},\n  \"muc_vang\": null,\n  \"hoc_phi\": null\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/du-lieu",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "du-lieu"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Lưu dữ liệu thành công', function () {",
+              "  pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Xem lần cập nhật gần nhất",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/du-lieu/moi-nhat",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "du-lieu",
+            "moi-nhat"
+          ]
+        }
+      }
+    },
+    {
+      "name": "8. Chạy dự đoán",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/du-doan",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "du-doan"
+          ]
+        }
+      }
+    },
+    {
+      "name": "9. Xem kết quả dự đoán gần nhất",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/ket-qua/moi-nhat",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ket-qua",
+            "moi-nhat"
+          ]
+        }
+      }
+    },
+    {
+      "name": "10. Xem lịch sử dự đoán",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/ket-qua/lich-su?muc_tieu=canh_bao&gioi_han=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ket-qua",
+            "lich-su"
+          ],
+          "query": [
+            {
+              "key": "muc_tieu",
+              "value": "canh_bao"
+            },
+            {
+              "key": "gioi_han",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "11. Hẹn nhắc sau 7 ngày",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"so_ngay\": 7\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/hen-nhac",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "hen-nhac"
+          ]
+        }
+      }
+    },
+    {
+      "name": "12. Xem lịch sử email",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/email/lich-su",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "email",
+            "lich-su"
+          ]
+        }
+      }
+    },
+    {
+      "name": "13. Kiểm tra API",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/suc-khoe",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "suc-khoe"
+          ]
+        }
+      }
+    }
+  ]
+}
