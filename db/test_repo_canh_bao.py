@@ -14,7 +14,10 @@ import sys
 import traceback
 from datetime import datetime, timedelta
 
+from dotenv import load_dotenv
+
 THU_MUC_GOC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(THU_MUC_GOC, ".env"))
 sys.path[:0] = [THU_MUC_GOC, os.path.join(THU_MUC_GOC, "ml")]
 
 TEN_CSDL_THU = "HT_THU_REPO"
@@ -33,7 +36,8 @@ FILE_MAU = os.path.join(THU_MUC_GOC, "ml", "du_lieu_mau", "cong_thong_tin_mau.tx
 # --- Dựng / xoá CSDL tạm --------------------------------------------------------
 def _ket_noi_master():
     driver = ket_noi.driver_odbc()
-    chuoi = f"DRIVER={{{driver}}};SERVER=localhost;DATABASE=master;Trusted_Connection=yes;"
+    server = os.environ.get("HT_DB_SERVER", "localhost")
+    chuoi = f"DRIVER={{{driver}}};SERVER={server};DATABASE=master;Trusted_Connection=yes;"
     if "18" in driver:
         chuoi += "Encrypt=yes;TrustServerCertificate=yes;"
     return pyodbc.connect(chuoi, autocommit=True)
