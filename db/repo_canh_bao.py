@@ -500,10 +500,10 @@ def danh_dau_loi(email_id: int, noi_dung_loi: str) -> str:
 
 def lich_su_email(user_id: int, gioi_han: int = 50) -> list[dict]:
     """Email của một người, mới nhất trước (GET /email/lich-su):
-    [{"id", "loai", "tieu_de", "trang_thai", "thoi_diem_tao", "thoi_diem_gui"}]."""
+    [{"id", "loai", "moc", "lan_nhac", "tieu_de", "trang_thai", "thoi_diem_tao", "thoi_diem_gui"}]."""
     with engine().connect() as cn:
         return [dict(r) for r in cn.execute(text("""
-            SELECT TOP (:n) id, loai, tieu_de, trang_thai, thoi_diem_tao, thoi_diem_gui
+            SELECT TOP (:n) id, loai, moc, lan_nhac, tieu_de, trang_thai, thoi_diem_tao, thoi_diem_gui
             FROM dbo.email_da_gui WHERE user_id = :uid
             ORDER BY thoi_diem_tao DESC, id DESC
         """), {"n": int(gioi_han), "uid": user_id}).mappings()]

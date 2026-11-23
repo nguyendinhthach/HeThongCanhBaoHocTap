@@ -14,6 +14,9 @@ from dich_vu.gui_email import gui_email
 _log = logging.getLogger(__name__)
 _MUI_GIO = ZoneInfo("Asia/Ho_Chi_Minh")
 _LOAI_NHAC = {"nhac_giua_ky", "nhac_cuoi_ky"}
+# Lần 1 xếp trong CUA_SO_NGAY ngày đầu kể từ mốc, lần 2 trong CUA_SO_NGAY ngày
+# tiếp theo; quá 2 cửa sổ thì mốc đã qua, bỏ qua (không gửi nhắc mốc cũ).
+CUA_SO_NGAY = 7
 
 
 def gui_hang_doi_email() -> int:
@@ -57,8 +60,23 @@ def _doc_moc_hoc_ky() -> list[dict]:
     return moc_hoc_ky
 
 
+def _ngay_nhac_lan_1(user_id: int, moc: dict) -> date | None:
+    """Ngày đã xếp nhắc lần 1 của mốc này cho người này; chưa có thì None."""
+    for email in repo.lich_su_email(user_id, 200):
+        if email["loai"] == moc["loai"] and email["moc"] == moc["moc"] and email["lan_nhac"] == 1:
+            return email["thoi_diem_tao"].date()
+    return None
+
+
 def nhac_theo_moc(ngay_hom_nay: date | None = None) -> int:
-    """Xếp nhắc lần 1 đúng mốc và lần 2 sau 7 ngày; dữ liệu trùng do repo chặn."""
+    """Nhắc người chưa cập nhật từ ngày mốc (SPEC §12.5), tối đa 2 lần mỗi mốc:
+
+    - ngày 0..6 kể từ mốc: nhắc lần 1;
+    - ngày 7..13: nhắc lần 2 cho ai đã nhận lần 1 từ 7 ngày trở lên; người mới
+      (chưa nhận lần 1, ví dụ vừa đăng ký) nhận lần 1 muộn, không có lần 2;
+    - từ ngày 14: mốc đã qua, bỏ qua — không gửi dồn nhắc của mốc cũ.
+    Trùng (người, loại, mốc, lần) thì repo.them_email tự bỏ qua.
+    """
     hom_nay = ngay_hom_nay or datetime.now(_MUI_GIO).date()
     da_xep = 0
     for moc in _doc_moc_hoc_ky():
@@ -67,23 +85,30 @@ def nhac_theo_moc(ngay_hom_nay: date | None = None) -> int:
             continue
 
         bat_dau = date.fromisoformat(moc["bat_dau"])
-        if hom_nay < bat_dau:
+        so_ngay = (hom_nay - bat_dau).days
+        if not 0 <= so_ngay < 2 * CUA_SO_NGAY:
             continue
 
         bat_dau_datetime = datetime.combine(bat_dau, time.min)
         for user_id in repo.nguoi_chua_cap_nhat_tu(bat_dau_datetime):
-            noi_dung = (f"Đã đến mốc {moc['moc']}. Hãy cập nhật kết quả học tập để xem cảnh báo "
-                        f"sớm và các gợi ý cải thiện.{thong_bao.DONG_CUOI}")
-            if repo.them_email(user_id, moc["loai"], f"Nhắc cập nhật kết quả học tập: {moc['moc']}",
-                               noi_dung, moc=moc["moc"], lan_nhac=1) is not None:
+            lan_nhac = 1
+            if so_ngay >= CUA_SO_NGAY:
+                ngay_lan_1 = _ngay_nhac_lan_1(user_id, moc)
+                if ngay_lan_1 is not None:
+                    if hom_nay - ngay_lan_1 < timedelta(days=CUA_SO_NGAY):
+                        continue                    # lần 1 còn mới (nhận muộn): chưa nhắc lại
+                    lan_nhac = 2
+            if lan_nhac == 1:
+                tieu_de = f"Nhắc cập nhật kết quả học tập: {moc['moc']}"
+                noi_dung = (f"Đã đến mốc {moc['moc']}. Hãy cập nhật kết quả học tập để xem cảnh báo "
+                            f"sớm và các gợi ý cải thiện.{thong_bao.DONG_CUOI}")
+            else:
+                tieu_de = f"Nhắc lần 2: {moc['moc']}"
+                noi_dung = (f"Đây là lần nhắc thứ hai cho mốc {moc['moc']}. Nếu chưa cập nhật, "
+                            f"hãy nhập kết quả học tập để xem cảnh báo sớm.{thong_bao.DONG_CUOI}")
+            if repo.them_email(user_id, moc["loai"], tieu_de, noi_dung,
+                               moc=moc["moc"], lan_nhac=lan_nhac) is not None:
                 da_xep += 1
-
-            if hom_nay >= bat_dau + timedelta(days=7):
-                noi_dung_lan_hai = (f"Đây là lần nhắc thứ hai cho mốc {moc['moc']}. Nếu chưa cập nhật, "
-                                    f"hãy nhập kết quả học tập để xem cảnh báo sớm.{thong_bao.DONG_CUOI}")
-                if repo.them_email(user_id, moc["loai"], f"Nhắc lần 2: {moc['moc']}",
-                                   noi_dung_lan_hai, moc=moc["moc"], lan_nhac=2) is not None:
-                    da_xep += 1
     return da_xep
 
 

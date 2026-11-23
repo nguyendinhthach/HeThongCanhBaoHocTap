@@ -2,7 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -38,7 +38,10 @@ class TacVuCanhBaoTests(unittest.TestCase):
         self.assertEqual(trang_thai[1][0:2], ("loi", 2))
         self.assertIn("SMTP không kết nối", trang_thai[1][2])
 
-    def test_nhac_theo_moc_xep_lan_hai_sau_bay_ngay_va_bo_qua_moc_chua_co_ngay(self):
+    def _chay_nhac(self, hom_nay, lich_su=None, nguoi=(7,)):
+        """Chạy nhac_theo_moc với mốc 'HK1 giữa kỳ' từ 01/10/2026 (và một mốc chưa có ngày).
+        lich_su: {user_id: [email đã có]}; trả (số đã xếp, [(user_id, moc, lan_nhac)])."""
+        lich_su = lich_su or {}
         with tempfile.TemporaryDirectory() as thu_muc:
             tep_moc = Path(thu_muc) / "moc_hoc_ky.json"
             tep_moc.write_text(json.dumps([
@@ -52,12 +55,40 @@ class TacVuCanhBaoTests(unittest.TestCase):
                 return len(duoc_xep)
 
             with patch.object(tac_vu_canh_bao.cau_hinh, "file_moc_hoc_ky", return_value=str(tep_moc)), \
-                    patch.object(repo, "nguoi_chua_cap_nhat_tu", return_value=[7]), \
+                    patch.object(repo, "nguoi_chua_cap_nhat_tu", return_value=list(nguoi)) as truy_van, \
+                    patch.object(repo, "lich_su_email",
+                                 side_effect=lambda uid, _n=50: lich_su.get(uid, [])), \
                     patch.object(repo, "them_email", side_effect=them_email):
-                so_luong = tac_vu_canh_bao.nhac_theo_moc(date(2026, 10, 8))
+                so_luong = tac_vu_canh_bao.nhac_theo_moc(hom_nay)
+        self.truy_van = truy_van
+        return so_luong, duoc_xep
 
-        self.assertEqual(so_luong, 2)
-        self.assertEqual(duoc_xep, [(7, "HK1 giữa kỳ", 1), (7, "HK1 giữa kỳ", 2)])
+    @staticmethod
+    def _lan_1(ngay):
+        return {"loai": "nhac_giua_ky", "moc": "HK1 giữa kỳ", "lan_nhac": 1,
+                "thoi_diem_tao": datetime.combine(ngay, datetime.min.time()).replace(hour=7)}
+
+    def test_nhac_theo_moc_trong_bay_ngay_dau_chi_xep_lan_mot(self):
+        for ngay in (date(2026, 10, 1), date(2026, 10, 7)):
+            so_luong, duoc_xep = self._chay_nhac(ngay)
+            self.assertEqual((so_luong, duoc_xep), (1, [(7, "HK1 giữa kỳ", 1)]), ngay)
+
+    def test_nhac_theo_moc_xep_lan_hai_sau_bay_ngay_va_bo_qua_moc_chua_co_ngay(self):
+        so_luong, duoc_xep = self._chay_nhac(date(2026, 10, 8), {7: [self._lan_1(date(2026, 10, 1))]})
+        self.assertEqual((so_luong, duoc_xep), (1, [(7, "HK1 giữa kỳ", 2)]))
+
+    def test_nhac_theo_moc_nguoi_moi_trong_tuan_hai_nhan_lan_mot_khong_nhan_lan_hai(self):
+        # chưa có lần 1 (vd vừa đăng ký) → lần 1 muộn
+        self.assertEqual(self._chay_nhac(date(2026, 10, 10))[1], [(7, "HK1 giữa kỳ", 1)])
+        # lần 1 nhận muộn ngày 10/10 → đến 13/10 chưa đủ 7 ngày, không nhắc lại
+        so_luong, duoc_xep = self._chay_nhac(date(2026, 10, 13), {7: [self._lan_1(date(2026, 10, 10))]})
+        self.assertEqual((so_luong, duoc_xep), (0, []))
+
+    def test_nhac_theo_moc_khong_gui_don_khi_moc_da_qua(self):
+        # lần chạy đầu tiên khi mốc đã qua ≥ 14 ngày, hoặc người đăng ký muộn hẳn
+        for ngay in (date(2026, 10, 15), date(2026, 11, 23), date(2027, 7, 1)):
+            self.assertEqual(self._chay_nhac(ngay), (0, []), ngay)
+            self.truy_van.assert_not_called()
 
     def test_nhac_theo_moc_khong_xep_truoc_ngay_bat_dau(self):
         with tempfile.TemporaryDirectory() as thu_muc:
