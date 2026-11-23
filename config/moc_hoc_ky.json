@@ -1,12 +1,16 @@
 [
   {
-    "moc": "HK1 2026–2027 giữa kỳ",
-    "loai": "nhac_giua_ky",
-    "bat_dau": "2026-10-15"
+    "hoc_ky": "HK1 2026–2027",
+    "nam_bat_dau": 2026,
+    "ky": 1,
+    "nhac_giua_ky": "2026-10-15",
+    "nhac_sau_thi": "2027-01-10"
   },
   {
-    "moc": "HK1 2026–2027 sau thi",
-    "loai": "nhac_cuoi_ky",
-    "bat_dau": "2026-12-25"
+    "hoc_ky": "HK2 2026–2027",
+    "nam_bat_dau": 2026,
+    "ky": 2,
+    "nhac_giua_ky": "2027-03-15",
+    "nhac_sau_thi": "2027-06-20"
   }
 ]

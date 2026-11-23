@@ -13,11 +13,17 @@ from dich_vu.gui_email import gui_email
 
 _log = logging.getLogger(__name__)
 _MUI_GIO = ZoneInfo("Asia/Ho_Chi_Minh")
-_LOAI_NHAC = {"nhac_giua_ky", "nhac_cuoi_ky"}
-# Lần 1 xếp trong CUA_SO_NGAY ngày đầu kể từ mốc, lần 2 trong CUA_SO_NGAY ngày
-# tiếp theo; quá 2 cửa sổ thì mốc đã qua, bỏ qua (không gửi nhắc mốc cũ).
-CUA_SO_NGAY = 7
-
+# Mỗi học kỳ 2 giai đoạn nhắc (SPEC §12.5): (loại email, trường ngày bắt đầu,
+# số lần, tên mốc, "xong" khi đủ điểm giữa kỳ hay phải có tổng kết học kỳ).
+GIAI_DOAN = (
+    ("nhac_giua_ky", "nhac_giua_ky", 3, "giữa kỳ", True),
+    ("nhac_cuoi_ky", "nhac_sau_thi", 2, "sau thi", False),
+)
+# Các lần cách nhau CHU_KY_NGAY ngày. Mỗi lần chỉ xếp email trong
+# NGAY_XEP_MOI_LAN ngày đầu (bù khi máy chủ tắt đúng ngày đó); quá thì bỏ qua,
+# nên người đăng ký muộn không nhận các lần đã qua.
+CHU_KY_NGAY = 15
+NGAY_XEP_MOI_LAN = 3
 
 def gui_hang_doi_email() -> int:
     """Gửi từng email đến hạn; cập nhật trạng thái theo kết quả SMTP."""
@@ -40,77 +46,64 @@ def _doc_moc_hoc_ky() -> list[dict]:
     if not isinstance(moc_hoc_ky, list):
         raise ValueError("config/moc_hoc_ky.json phải chứa một danh sách các mốc.")
 
-    for vi_tri, moc in enumerate(moc_hoc_ky):
-        if not isinstance(moc, dict):
-            raise ValueError(f"Mốc thứ {vi_tri + 1} phải là một object JSON.")
-        if not isinstance(moc.get("moc"), str) or not moc["moc"].strip():
-            raise ValueError(f"Mốc thứ {vi_tri + 1} thiếu tên 'moc'.")
-        if moc.get("loai") not in _LOAI_NHAC:
-            raise ValueError(f"Mốc {moc['moc']!r} có 'loai' không hợp lệ.")
-        if "bat_dau" not in moc:
-            raise ValueError(f"Mốc {moc['moc']!r} thiếu trường 'bat_dau'.")
-        ngay_bat_dau = moc.get("bat_dau")
-        if ngay_bat_dau is not None:
-            if not isinstance(ngay_bat_dau, str):
-                raise ValueError(f"'bat_dau' của mốc {moc['moc']!r} phải là YYYY-MM-DD hoặc null.")
+    for vi_tri, hk in enumerate(moc_hoc_ky):
+        if not isinstance(hk, dict):
+            raise ValueError(f"Học kỳ thứ {vi_tri + 1} phải là một object JSON.")
+        if not isinstance(hk.get("hoc_ky"), str) or not hk["hoc_ky"].strip():
+            raise ValueError(f"Học kỳ thứ {vi_tri + 1} thiếu tên 'hoc_ky'.")
+        ten = hk["hoc_ky"]
+        if not isinstance(hk.get("nam_bat_dau"), int) or hk.get("ky") not in (1, 2, 3):
+            raise ValueError(f"Học kỳ {ten!r} cần 'nam_bat_dau' (số năm) và 'ky' (1, 2 hoặc 3).")
+        for _, truong, *_ in GIAI_DOAN:
             try:
-                date.fromisoformat(ngay_bat_dau)
-            except ValueError as loi:
-                raise ValueError(f"'bat_dau' của mốc {moc['moc']!r} không phải ngày YYYY-MM-DD.") from loi
+                date.fromisoformat(hk[truong])
+            except (KeyError, TypeError, ValueError) as loi:
+                raise ValueError(f"'{truong}' của học kỳ {ten!r} phải là ngày YYYY-MM-DD.") from loi
+        so_ngay_giua_ky = GIAI_DOAN[0][2] * CHU_KY_NGAY
+        if date.fromisoformat(hk["nhac_sau_thi"]) < date.fromisoformat(hk["nhac_giua_ky"]) +                 timedelta(days=so_ngay_giua_ky):
+            raise ValueError(f"Học kỳ {ten!r}: 'nhac_sau_thi' phải sau 'nhac_giua_ky' "
+                             f"ít nhất {so_ngay_giua_ky} ngày.")
     return moc_hoc_ky
 
 
-def _ngay_nhac_lan_1(user_id: int, moc: dict) -> date | None:
-    """Ngày đã xếp nhắc lần 1 của mốc này cho người này; chưa có thì None."""
-    for email in repo.lich_su_email(user_id, 200):
-        if email["loai"] == moc["loai"] and email["moc"] == moc["moc"] and email["lan_nhac"] == 1:
-            return email["thoi_diem_tao"].date()
-    return None
+def _noi_dung(loai: str, hoc_ky: str) -> tuple[str, str]:
+    if loai == "nhac_giua_ky":
+        return (f"Nhắc cập nhật điểm giữa kỳ: {hoc_ky}",
+                f"Bạn chưa nhập đủ điểm giữa kỳ của {hoc_ky}. Khi đã có điểm giữa kỳ môn nào, "
+                f"hãy cập nhật để xem cảnh báo sớm và gợi ý cải thiện.{thong_bao.DONG_CUOI}")
+    return (f"Nhắc cập nhật kết quả học kỳ: {hoc_ky}",
+            f"Kỳ thi {hoc_ky} đã kết thúc. Khi điểm học kỳ đã có trên cổng thông tin, "
+            f"hãy cập nhật để xem cảnh báo cho học kỳ tới.{thong_bao.DONG_CUOI}")
 
 
 def nhac_theo_moc(ngay_hom_nay: date | None = None) -> int:
-    """Nhắc người chưa cập nhật từ ngày mốc (SPEC §12.5), tối đa 2 lần mỗi mốc:
+    """Nhắc người chưa nhập xong điểm (SPEC §12.5), tối đa 5 email / học kỳ.
 
-    - ngày 0..6 kể từ mốc: nhắc lần 1;
-    - ngày 7..13: nhắc lần 2 cho ai đã nhận lần 1 từ 7 ngày trở lên; người mới
-      (chưa nhận lần 1, ví dụ vừa đăng ký) nhận lần 1 muộn, không có lần 2;
-    - từ ngày 14: mốc đã qua, bỏ qua — không gửi dồn nhắc của mốc cũ.
-    Trùng (người, loại, mốc, lần) thì repo.them_email tự bỏ qua.
+    Nửa đầu học kỳ chưa có điểm nên không nhắc. Mỗi học kỳ:
+    - giữa kỳ: 3 lần từ nhac_giua_ky, cách 15 ngày; "xong" khi lần cập nhật từ
+      nhac_giua_ky có môn nào cũng đủ điểm giữa kỳ;
+    - sau thi: 2 lần từ nhac_sau_thi, cách 15 ngày; "xong" khi đã có tổng kết
+      của học kỳ đó.
+    Không gửi cho ai tắt nhận email (repo.nguoi_chua_nhap_xong). Trùng
+    (người, loại, mốc, lần) thì repo.them_email tự bỏ qua.
     """
     hom_nay = ngay_hom_nay or datetime.now(_MUI_GIO).date()
     da_xep = 0
-    for moc in _doc_moc_hoc_ky():
-        if moc["bat_dau"] is None:
-            _log.warning("Bỏ qua mốc %r vì chưa cấu hình ngày bat_dau.", moc["moc"])
-            continue
-
-        bat_dau = date.fromisoformat(moc["bat_dau"])
-        so_ngay = (hom_nay - bat_dau).days
-        if not 0 <= so_ngay < 2 * CUA_SO_NGAY:
-            continue
-
-        bat_dau_datetime = datetime.combine(bat_dau, time.min)
-        for user_id in repo.nguoi_chua_cap_nhat_tu(bat_dau_datetime):
-            lan_nhac = 1
-            if so_ngay >= CUA_SO_NGAY:
-                ngay_lan_1 = _ngay_nhac_lan_1(user_id, moc)
-                if ngay_lan_1 is not None:
-                    if hom_nay - ngay_lan_1 < timedelta(days=CUA_SO_NGAY):
-                        continue                    # lần 1 còn mới (nhận muộn): chưa nhắc lại
-                    lan_nhac = 2
-            if lan_nhac == 1:
-                tieu_de = f"Nhắc cập nhật kết quả học tập: {moc['moc']}"
-                noi_dung = (f"Đã đến mốc {moc['moc']}. Hãy cập nhật kết quả học tập để xem cảnh báo "
-                            f"sớm và các gợi ý cải thiện.{thong_bao.DONG_CUOI}")
-            else:
-                tieu_de = f"Nhắc lần 2: {moc['moc']}"
-                noi_dung = (f"Đây là lần nhắc thứ hai cho mốc {moc['moc']}. Nếu chưa cập nhật, "
-                            f"hãy nhập kết quả học tập để xem cảnh báo sớm.{thong_bao.DONG_CUOI}")
-            if repo.them_email(user_id, moc["loai"], tieu_de, noi_dung,
-                               moc=moc["moc"], lan_nhac=lan_nhac) is not None:
-                da_xep += 1
+    for hk in _doc_moc_hoc_ky():
+        for loai, truong, so_lan, ten_moc, xong_khi_du_gk in GIAI_DOAN:
+            bat_dau = date.fromisoformat(hk[truong])
+            so_ngay = (hom_nay - bat_dau).days
+            if not 0 <= so_ngay < so_lan * CHU_KY_NGAY or so_ngay % CHU_KY_NGAY >= NGAY_XEP_MOI_LAN:
+                continue
+            lan = so_ngay // CHU_KY_NGAY + 1
+            tieu_de, noi_dung = _noi_dung(loai, hk["hoc_ky"])
+            for user_id in repo.nguoi_chua_nhap_xong(hk["nam_bat_dau"], hk["ky"],
+                                                     datetime.combine(bat_dau, time.min),
+                                                     xong_khi_du_gk):
+                if repo.them_email(user_id, loai, tieu_de, noi_dung,
+                                   moc=f"{hk['hoc_ky']} {ten_moc}", lan_nhac=lan) is not None:
+                    da_xep += 1
     return da_xep
-
 
 def du_doan_lai_khi_co_mo_hinh_moi() -> int:
     """Dự đoán lại các lần cập nhật gần nhất khi mô hình cảnh báo được đổi."""

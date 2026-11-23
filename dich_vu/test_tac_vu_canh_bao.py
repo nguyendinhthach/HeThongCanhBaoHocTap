@@ -2,7 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -38,69 +38,83 @@ class TacVuCanhBaoTests(unittest.TestCase):
         self.assertEqual(trang_thai[1][0:2], ("loi", 2))
         self.assertIn("SMTP không kết nối", trang_thai[1][2])
 
-    def _chay_nhac(self, hom_nay, lich_su=None, nguoi=(7,)):
-        """Chạy nhac_theo_moc với mốc 'HK1 giữa kỳ' từ 01/10/2026 (và một mốc chưa có ngày).
-        lich_su: {user_id: [email đã có]}; trả (số đã xếp, [(user_id, moc, lan_nhac)])."""
-        lich_su = lich_su or {}
+    HK1 = {"hoc_ky": "HK1 2026–2027", "nam_bat_dau": 2026, "ky": 1,
+           "nhac_giua_ky": "2026-10-15", "nhac_sau_thi": "2027-01-10"}
+
+    def _chay_nhac(self, hom_nay, moc=None, nguoi=(7,), them_email=None):
+        """Chạy nhac_theo_moc với file mốc tạm (mặc định chỉ HK1 2026–2027).
+        Trả (số đã xếp, [(user_id, loai, moc, lan_nhac)]); self.truy_van = lời gọi
+        nguoi_chua_nhap_xong."""
         with tempfile.TemporaryDirectory() as thu_muc:
             tep_moc = Path(thu_muc) / "moc_hoc_ky.json"
-            tep_moc.write_text(json.dumps([
-                {"moc": "HK1 giữa kỳ", "loai": "nhac_giua_ky", "bat_dau": "2026-10-01"},
-                {"moc": "HK1 sau thi", "loai": "nhac_cuoi_ky", "bat_dau": None},
-            ]), encoding="utf-8")
+            tep_moc.write_text(json.dumps(moc or [self.HK1]), encoding="utf-8")
             duoc_xep = []
 
-            def them_email(*args, **kwargs):
-                duoc_xep.append((args[0], kwargs["moc"], kwargs["lan_nhac"]))
+            def ghi(user_id, loai, *_, **kwargs):
+                duoc_xep.append((user_id, loai, kwargs["moc"], kwargs["lan_nhac"]))
                 return len(duoc_xep)
 
-            with patch.object(tac_vu_canh_bao.cau_hinh, "file_moc_hoc_ky", return_value=str(tep_moc)), \
-                    patch.object(repo, "nguoi_chua_cap_nhat_tu", return_value=list(nguoi)) as truy_van, \
-                    patch.object(repo, "lich_su_email",
-                                 side_effect=lambda uid, _n=50: lich_su.get(uid, [])), \
-                    patch.object(repo, "them_email", side_effect=them_email):
+            with patch.object(tac_vu_canh_bao.cau_hinh, "file_moc_hoc_ky", return_value=str(tep_moc)),                     patch.object(repo, "nguoi_chua_nhap_xong", return_value=list(nguoi)) as truy_van,                     patch.object(repo, "them_email", side_effect=them_email or ghi):
                 so_luong = tac_vu_canh_bao.nhac_theo_moc(hom_nay)
         self.truy_van = truy_van
         return so_luong, duoc_xep
 
-    @staticmethod
-    def _lan_1(ngay):
-        return {"loai": "nhac_giua_ky", "moc": "HK1 giữa kỳ", "lan_nhac": 1,
-                "thoi_diem_tao": datetime.combine(ngay, datetime.min.time()).replace(hour=7)}
+    def test_nhac_dung_5_lan_moi_hoc_ky_va_dung_ngay(self):
+        da_xep, ngay_xep = set(), []
 
-    def test_nhac_theo_moc_trong_bay_ngay_dau_chi_xep_lan_mot(self):
-        for ngay in (date(2026, 10, 1), date(2026, 10, 7)):
-            so_luong, duoc_xep = self._chay_nhac(ngay)
-            self.assertEqual((so_luong, duoc_xep), (1, [(7, "HK1 giữa kỳ", 1)]), ngay)
+        def them_email(user_id, loai, *_, moc, lan_nhac, **__):
+            if (loai, moc, lan_nhac) in da_xep:
+                return None                                   # trùng: chỉ mục UX_edg_moc chặn
+            da_xep.add((loai, moc, lan_nhac))
+            ngay_xep.append((ngay, loai, moc, lan_nhac))
+            return len(da_xep)
 
-    def test_nhac_theo_moc_xep_lan_hai_sau_bay_ngay_va_bo_qua_moc_chua_co_ngay(self):
-        so_luong, duoc_xep = self._chay_nhac(date(2026, 10, 8), {7: [self._lan_1(date(2026, 10, 1))]})
-        self.assertEqual((so_luong, duoc_xep), (1, [(7, "HK1 giữa kỳ", 2)]))
+        ngay = date(2026, 9, 1)
+        while ngay < date(2027, 3, 1):
+            self._chay_nhac(ngay, them_email=them_email)
+            ngay += timedelta(days=1)
+        self.assertEqual(ngay_xep, [
+            (date(2026, 10, 15), "nhac_giua_ky", "HK1 2026–2027 giữa kỳ", 1),
+            (date(2026, 10, 30), "nhac_giua_ky", "HK1 2026–2027 giữa kỳ", 2),
+            (date(2026, 11, 14), "nhac_giua_ky", "HK1 2026–2027 giữa kỳ", 3),
+            (date(2027, 1, 10), "nhac_cuoi_ky", "HK1 2026–2027 sau thi", 1),
+            (date(2027, 1, 25), "nhac_cuoi_ky", "HK1 2026–2027 sau thi", 2),
+        ])
 
-    def test_nhac_theo_moc_nguoi_moi_trong_tuan_hai_nhan_lan_mot_khong_nhan_lan_hai(self):
-        # chưa có lần 1 (vd vừa đăng ký) → lần 1 muộn
-        self.assertEqual(self._chay_nhac(date(2026, 10, 10))[1], [(7, "HK1 giữa kỳ", 1)])
-        # lần 1 nhận muộn ngày 10/10 → đến 13/10 chưa đủ 7 ngày, không nhắc lại
-        so_luong, duoc_xep = self._chay_nhac(date(2026, 10, 13), {7: [self._lan_1(date(2026, 10, 10))]})
-        self.assertEqual((so_luong, duoc_xep), (0, []))
-
-    def test_nhac_theo_moc_khong_gui_don_khi_moc_da_qua(self):
-        # lần chạy đầu tiên khi mốc đã qua ≥ 14 ngày, hoặc người đăng ký muộn hẳn
-        for ngay in (date(2026, 10, 15), date(2026, 11, 23), date(2027, 7, 1)):
+    def test_nhac_khong_xep_ngoai_3_ngay_dau_moi_lan(self):
+        # nửa đầu kỳ, giữa hai lần, sau lần giữa kỳ thứ 3, sau lần sau thi thứ 2; 23/11 = hôm nay
+        for ngay in (date(2026, 10, 14), date(2026, 10, 18), date(2026, 11, 23),
+                     date(2026, 11, 29), date(2027, 2, 9)):
             self.assertEqual(self._chay_nhac(ngay), (0, []), ngay)
             self.truy_van.assert_not_called()
+        # máy chủ tắt ngày 15/10 -> 17/10 vẫn bù lần 1
+        self.assertEqual(self._chay_nhac(date(2026, 10, 17))[1],
+                         [(7, "nhac_giua_ky", "HK1 2026–2027 giữa kỳ", 1)])
 
-    def test_nhac_theo_moc_khong_xep_truoc_ngay_bat_dau(self):
-        with tempfile.TemporaryDirectory() as thu_muc:
-            tep_moc = Path(thu_muc) / "moc_hoc_ky.json"
-            tep_moc.write_text(json.dumps([
-                {"moc": "HK1 giữa kỳ", "loai": "nhac_giua_ky", "bat_dau": "2026-10-01"},
-            ]), encoding="utf-8")
-            with patch.object(tac_vu_canh_bao.cau_hinh, "file_moc_hoc_ky", return_value=str(tep_moc)), \
-                    patch.object(repo, "nguoi_chua_cap_nhat_tu") as truy_van:
-                self.assertEqual(tac_vu_canh_bao.nhac_theo_moc(date(2026, 9, 30)), 0)
+    def test_nhac_giua_ky_xet_diem_gk_sau_thi_xet_tong_ket_hoc_ky(self):
+        self._chay_nhac(date(2026, 10, 30))
+        self.truy_van.assert_called_once_with(2026, 1, datetime(2026, 10, 15), True)
+        self._chay_nhac(date(2027, 1, 25))
+        self.truy_van.assert_called_once_with(2026, 1, datetime(2027, 1, 10), False)
 
-        truy_van.assert_not_called()
+    def test_nhac_bo_qua_nguoi_da_xong_va_email_trung(self):
+        self.assertEqual(self._chay_nhac(date(2026, 10, 15), nguoi=[]), (0, []))
+        self.assertEqual(self._chay_nhac(date(2026, 10, 16), nguoi=[7, 8],
+                                         them_email=lambda *a, **k: None), (0, []))
+
+    def test_nhac_bao_loi_cau_hinh_sai(self):
+        sai = [
+            {**self.HK1, "nhac_giua_ky": "ngay-khong-hop-le"},
+            {**self.HK1, "nhac_sau_thi": None},
+            {**self.HK1, "nhac_sau_thi": "2026-11-20"},       # chồng lên 3 lần nhắc giữa kỳ
+            {**self.HK1, "ky": 4},
+        ]
+        for hk in sai:
+            with self.assertRaises(ValueError, msg=hk):
+                self._chay_nhac(date(2026, 10, 15), moc=[hk])
+
+    def test_file_moc_hoc_ky_that_hop_le(self):
+        self.assertEqual(len(tac_vu_canh_bao._doc_moc_hoc_ky()), 2)
 
     def test_du_doan_lai_cho_tat_ca_khi_phien_ban_toan_cuc_khac(self):
         da_chay = []
@@ -152,16 +166,6 @@ class TacVuCanhBaoTests(unittest.TestCase):
             self.assertEqual(tac_vu_canh_bao.du_doan_lai_khi_co_mo_hinh_moi(), 0)
 
         chay.assert_not_called()
-
-    def test_nhac_theo_moc_bao_loi_neu_ngay_khong_dung_dinh_dang(self):
-        with tempfile.TemporaryDirectory() as thu_muc:
-            tep_moc = Path(thu_muc) / "moc_hoc_ky.json"
-            tep_moc.write_text(json.dumps([
-                {"moc": "HK1 giữa kỳ", "loai": "nhac_giua_ky", "bat_dau": "ngay-khong-hop-le"},
-            ]), encoding="utf-8")
-            with patch.object(tac_vu_canh_bao.cau_hinh, "file_moc_hoc_ky", return_value=str(tep_moc)):
-                with self.assertRaisesRegex(ValueError, "YYYY-MM-DD"):
-                    tac_vu_canh_bao.nhac_theo_moc(date(2026, 10, 8))
 
 
 if __name__ == "__main__":

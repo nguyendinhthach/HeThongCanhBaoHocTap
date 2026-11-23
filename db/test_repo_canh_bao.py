@@ -24,6 +24,7 @@ TEN_CSDL_THU = "HT_THU_REPO"
 os.environ["HT_DB_NAME"] = TEN_CSDL_THU          # phải đặt trước khi engine() được tạo
 os.environ.pop("HT_DB_URL", None)
 
+import numpy as np
 import pyodbc
 
 from db import ket_noi
@@ -179,6 +180,31 @@ def test_nguoi_chua_cap_nhat_va_moi_nhat_moi_nguoi():
     assert a in repo.nguoi_chua_cap_nhat_tu(datetime.now() + timedelta(days=1))
     cap = dict(repo.lan_cap_nhat_moi_nhat_moi_nguoi())
     assert cap[a] == lcn_a2 != lcn_a1 and b not in cap
+
+
+def test_nguoi_chua_nhap_xong():
+    _, hk, mon = doc_mau()
+    hk = hk.assign(nam_bat_dau=2025, ky_trong_nam=1)          # chưa có tổng kết HK1 2026–2027
+    du_gk = mon.assign(diem_gk=7.0, ti_trong_gk=0.3)
+    thieu_gk = du_gk.copy()
+    thieu_gk.loc[thieu_gk.index[0], ["diem_gk", "ti_trong_gk"]] = np.nan
+    co_tong_ket = hk.copy()
+    co_tong_ket.loc[co_tong_ket.index[-1], ["nam_bat_dau", "ky_trong_nam"]] = [2026, 1]
+
+    chua, du, thieu, xong, tat = (tao_nguoi(f"nx_{t}") for t in "abcde")
+    repo.luu_lan_cap_nhat(du, "nhap_tay", {}, hk, du_gk)
+    repo.luu_lan_cap_nhat(thieu, "nhap_tay", {}, hk, thieu_gk)
+    repo.luu_lan_cap_nhat(xong, "nhap_tay", {}, co_tong_ket, thieu_gk)
+    repo.dat_nhan_email(tat, False)
+
+    truoc = datetime.now() - timedelta(minutes=5)
+    trong_ky = repo.nguoi_chua_nhap_xong(2026, 1, truoc, True)
+    assert chua in trong_ky and thieu in trong_ky
+    assert du not in trong_ky and xong not in trong_ky and tat not in trong_ky
+    sau_thi = repo.nguoi_chua_nhap_xong(2026, 1, truoc, False)
+    assert {chua, du, thieu} <= set(sau_thi) and xong not in sau_thi and tat not in sau_thi
+    # đủ điểm GK nhưng cập nhật TRƯỚC ngày bắt đầu nhắc thì vẫn nhắc
+    assert du in repo.nguoi_chua_nhap_xong(2026, 1, datetime.now() + timedelta(days=1), True)
 
 
 # --- Dự đoán ---------------------------------------------------------------------
