@@ -547,27 +547,34 @@ như hiện nay); các API còn lại gửi kèm `Authorization: Bearer <token>`
 | Tác vụ           | Lịch                | Làm gì                                                                                                                                                                                                                                       |
 | ---------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Gửi hàng đợi  | 5 phút / lần        | Gửi các dòng `email_da_gui` `cho_gui` có `hen_gui` trống hoặc đã đến hạn; thành công → `da_gui` + `thoi_diem_gui`; lỗi → tăng `so_lan_thu`, quá 3 lần → `loi` + `noi_dung_loi`                                                               |
-| 2. Nhắc theo mốc | 7 giờ sáng mỗi ngày | Đọc `config/moc_hoc_ky.json`. Đến ngày `bat_dau` của một mốc: xếp nhắc lần 1 cho sinh viên `nhan_email = 1` chưa cập nhật từ ngày đó; sau 7 ngày: nhắc lần 2 cho ai vẫn chưa cập nhật. Tối đa 2 lần mỗi mốc (chặn bằng chỉ mục `UX_edg_moc`) |
+| 2. Nhắc định kỳ  | 7 giờ sáng mỗi ngày | Đọc `config/moc_hoc_ky.json`. Mỗi học kỳ **tối đa 5 email / người**: 3 lần nhắc điểm giữa kỳ từ `nhac_giua_ky` và 2 lần nhắc kết quả học kỳ từ `nhac_sau_thi`, các lần cách nhau 15 ngày, mỗi lần chỉ xếp trong 3 ngày đầu (chặn trùng bằng `UX_edg_moc`: `moc = "<học kỳ> giữa kỳ" / "<học kỳ> sau thi"`, `lan_nhac` = lần). Chỉ gửi cho `nhan_email = 1` **chưa nhập xong**: giữa kỳ là chưa đủ điểm giữa kỳ mọi môn (`nhac_giua_ky`), sau thi là chưa có tổng kết học kỳ đó (`nhac_cuoi_ky`) |
 | 3. Mô hình mới   | 2 giờ sáng mỗi ngày | Nếu thời điểm train trong `models/*.joblib` mới hơn `phien_ban_mo_hinh` của các dự đoán gần nhất: dự đoán lại lần cập nhật mới nhất của mọi sinh viên, lưu, xếp email cho ai **mới** có nguy cơ cao                                          |
 
-`config/moc_hoc_ky.json` — ngày lấy theo **kế hoạch đào tạo năm học** của
-trường (QĐ 600 Điều 14.3: tuần thi nằm trong kế hoạch này), không theo ngày
-có điểm (không cố định):
+`config/moc_hoc_ky.json` — mỗi học kỳ 2 ngày bắt đầu nhắc. Điểm giữa kỳ do
+từng giảng viên quyết định thời điểm và cách tính, nên **không có một ngày
+"giữa kỳ" chung**: nửa đầu học kỳ chưa có điểm thì không nhắc, chỉ chọn một
+ngày đủ muộn để bắt đầu. Ngày ước theo lịch thi thường gặp ở trường (HK1 thi
+khoảng tháng 11–12, HK2 khoảng cuối tháng 4 – đầu tháng 6); kế hoạch đào tạo
+năm học (QĐ 600 Điều 14.3) công bố thì đối chiếu lại:
 
 ```json
 [
-  {
-    "moc": "HK1 2026–2027 giữa kỳ",
-    "loai": "nhac_giua_ky",
-    "bat_dau": "<ngày theo kế hoạch đào tạo>"
-  },
-  {
-    "moc": "HK1 2026–2027 sau thi",
-    "loai": "nhac_cuoi_ky",
-    "bat_dau": "<2–3 tuần sau tuần thi cuối>"
-  }
+  {"hoc_ky": "HK1 2026–2027", "nam_bat_dau": 2026, "ky": 1,
+   "nhac_giua_ky": "2026-10-15", "nhac_sau_thi": "2027-01-10"},
+  {"hoc_ky": "HK2 2026–2027", "nam_bat_dau": 2026, "ky": 2,
+   "nhac_giua_ky": "2027-03-15", "nhac_sau_thi": "2027-06-20"}
 ]
 ```
+
+| Học kỳ        | Nhắc điểm giữa kỳ     | Nhắc kết quả học kỳ |
+| ------------- | --------------------- | ------------------- |
+| HK1 2026–2027 | 15/10, 30/10, 14/11   | 10/01, 25/01        |
+| HK2 2026–2027 | 15/03, 30/03, 14/04   | 20/06, 05/07        |
+
+"Nhập xong" xét lần cập nhật **mới nhất** (`repo.nguoi_chua_nhap_xong`): có
+dòng tổng kết của học kỳ (`nam_bat_dau`, `ky`) là xong hẳn; giai đoạn giữa kỳ,
+lần cập nhật từ `nhac_giua_ky` có môn đang học và môn nào cũng có điểm giữa kỳ
+là xong phần giữa kỳ. Người đăng ký muộn không nhận các lần nhắc đã qua.
 
 ### 12.6 Email
 

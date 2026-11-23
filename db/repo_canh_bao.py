@@ -279,6 +279,34 @@ def nguoi_chua_cap_nhat_tu(moc: datetime) -> list[int]:
         """), {"moc": moc}).scalars())
 
 
+def nguoi_chua_nhap_xong(nam_bat_dau: int, hoc_ky: int, tu: datetime,
+                         xong_khi_du_diem_gk: bool) -> list[int]:
+    """user_id có nhan_email = 1 mà CHƯA nhập xong điểm học kỳ (nam_bat_dau, hoc_ky)
+    (tác vụ 2: nhắc định kỳ). Xét lần cập nhật MỚI NHẤT của từng người:
+
+    - đã có dòng tổng kết của học kỳ đó (điểm cả kỳ đã lên) -> xong;
+    - xong_khi_du_diem_gk (đang trong kỳ): lần cập nhật từ `tu` trở đi có môn
+      đang học và môn nào cũng có điểm giữa kỳ -> xong phần giữa kỳ;
+    - còn lại (kể cả chưa cập nhật lần nào) -> cần nhắc.
+    """
+    with engine().connect() as cn:
+        return list(cn.execute(text("""
+            SELECT u.id FROM dbo.nguoi_dung u
+            OUTER APPLY (SELECT TOP (1) l.id, l.thoi_diem FROM dbo.lan_cap_nhat l
+                         WHERE l.user_id = u.id ORDER BY l.thoi_diem DESC, l.id DESC) m
+            WHERE u.nhan_email = 1
+              AND (m.id IS NULL OR (
+                  NOT EXISTS (SELECT 1 FROM dbo.hoc_ky_tong_ket h
+                              WHERE h.lan_cap_nhat_id = m.id
+                                AND h.nam_bat_dau = :nam AND h.hoc_ky = :ky)
+                  AND NOT (:gk = 1 AND m.thoi_diem >= :tu
+                           AND EXISTS (SELECT 1 FROM dbo.mon_dang_hoc d WHERE d.lan_cap_nhat_id = m.id)
+                           AND NOT EXISTS (SELECT 1 FROM dbo.mon_dang_hoc d
+                                           WHERE d.lan_cap_nhat_id = m.id AND d.diem_gk IS NULL))))
+            ORDER BY u.id
+        """), {"nam": nam_bat_dau, "ky": hoc_ky, "tu": tu, "gk": int(xong_khi_du_diem_gk)}).scalars())
+
+
 def lan_cap_nhat_moi_nhat_moi_nguoi() -> list[tuple[int, int]]:
     """[(user_id, lan_cap_nhat_id mới nhất)] của mọi người đã từng cập nhật
     (tác vụ 3: dự đoán lại khi có mô hình mới)."""
@@ -500,10 +528,10 @@ def danh_dau_loi(email_id: int, noi_dung_loi: str) -> str:
 
 def lich_su_email(user_id: int, gioi_han: int = 50) -> list[dict]:
     """Email của một người, mới nhất trước (GET /email/lich-su):
-    [{"id", "loai", "tieu_de", "trang_thai", "thoi_diem_tao", "thoi_diem_gui"}]."""
+    [{"id", "loai", "moc", "lan_nhac", "tieu_de", "trang_thai", "thoi_diem_tao", "thoi_diem_gui"}]."""
     with engine().connect() as cn:
         return [dict(r) for r in cn.execute(text("""
-            SELECT TOP (:n) id, loai, tieu_de, trang_thai, thoi_diem_tao, thoi_diem_gui
+            SELECT TOP (:n) id, loai, moc, lan_nhac, tieu_de, trang_thai, thoi_diem_tao, thoi_diem_gui
             FROM dbo.email_da_gui WHERE user_id = :uid
             ORDER BY thoi_diem_tao DESC, id DESC
         """), {"n": int(gioi_han), "uid": user_id}).mappings()]

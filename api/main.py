@@ -18,14 +18,17 @@ from pydantic import BaseModel, Field
 
 from db import ket_noi
 from db import repo_canh_bao as repo
-from dich_vu import LoiNghiepVu, du_doan, du_lieu, tai_khoan, thong_bao
+from dich_vu import LoiNghiepVu, du_doan, du_lieu, tai_khoan, tac_vu_canh_bao, thong_bao
 
 
 @asynccontextmanager
 async def vong_doi(app: FastAPI):
-    # Tác vụ định kỳ (APScheduler: gửi hàng đợi email, nhắc theo mốc, dự đoán lại
-    # khi có mô hình mới — SPEC §12.5) khởi động ở đây và tắt sau yield.
-    yield
+    scheduler = tac_vu_canh_bao.tao_scheduler()
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.shutdown(wait=True)
 
 
 app = FastAPI(title="Hệ thống cảnh báo sớm nguy cơ học tập", version="0.1.0", lifespan=vong_doi)
