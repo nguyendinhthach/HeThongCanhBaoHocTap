@@ -44,7 +44,8 @@ def xem_truoc(van_ban: str) -> dict:
     hk = bang_hoc_ky.assign(
         nam_bat_dau=bang_hoc_ky["hoc_ky"].map(lambda k: nam_ky[k][0]),
         ky_trong_nam=bang_hoc_ky["hoc_ky"].map(lambda k: nam_ky[k][1]))[COT_HOC_KY]
-    hk["ten"] = [cong.ten_mot_ky(nam_ky[k][1], nam_ky[k][0]) for k in hk["hoc_ky"]]
+    ten = cong.ten_hoc_ky(van_ban)                  # có "(gộp học kỳ hè)" khi gộp
+    hk["ten"] = [ten[k] for k in hk["hoc_ky"]]
     ky_mon = int(bang_mon["hoc_ky"].iloc[0]) if len(bang_mon) else None
     sv = sinh_vien.iloc[0]
     return {

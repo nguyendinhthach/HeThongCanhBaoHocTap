@@ -75,7 +75,8 @@ def test_doc_du_lieu_sang_buoc_kiem_tra():
     bam(at, "Đọc dữ liệu")
     assert at.radio[0].value == "2. Kiểm tra"
     assert at.metric[0].value == "6"
-    assert "Không phát hiện lỗi" in at.success[0].value
+    # bảng mẫu chưa mở Chi tiết các môn đang học -> chỉ nhắc mở, không có lỗi nào khác
+    assert "Chưa mở Chi tiết 6 môn của HK1 2026–2027" in at.warning[0].value
 
 
 def test_van_ban_sai_bao_loi():
@@ -157,7 +158,9 @@ def test_canh_bao_khi_mat_dong_tong_ket():
 
 
 def test_van_ban_day_du_khong_canh_bao():
-    assert cong.canh_bao_du_lieu(van_ban_mau()) == []
+    """Chỉ còn nhắc mở Chi tiết các môn đang học (bảng mẫu chưa mở), không lỗi nào khác."""
+    canh_bao = cong.canh_bao_du_lieu(van_ban_mau())
+    assert len(canh_bao) == 1 and canh_bao[0].startswith("Chưa mở Chi tiết")
 
 
 if __name__ == "__main__":

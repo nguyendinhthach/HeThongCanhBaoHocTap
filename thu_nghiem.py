@@ -91,9 +91,10 @@ def trang_du_lieu():
         st.markdown(
             "1. Đăng nhập **online.dlu.edu.vn**, vào **Kết quả học tập**, chọn **Xem điểm "
             "sinh viên**, để Năm học và Học kỳ ở mức tất cả.\n"
-            "2. Nhấn **Ctrl+A** rồi **Ctrl+C**. Muốn dự đoán từng môn thì mở **Chi tiết** "
-            "các môn đang học trước.\n"
-            "3. Nhấp vào ô bên cạnh, nhấn **Ctrl+V**, rồi bấm **Đọc dữ liệu**.")
+            "2. Muốn dự đoán từng môn: bấm **mũi tên** ở cuối dòng từng môn **của học kỳ "
+            "đang học** để mở Chi tiết (có điểm giữa kỳ). Các học kỳ trước không cần mở.\n"
+            "3. Nhấn **Ctrl+A** rồi **Ctrl+C**.\n"
+            "4. Nhấp vào ô bên cạnh, nhấn **Ctrl+V**, rồi bấm **Đọc dữ liệu**.")
     with phai:
         st.text_area("Văn bản trang Xem điểm", key="van_ban", height=340,
                      placeholder="Nhấn Ctrl+V để đưa toàn bộ trang vào đây")

@@ -120,6 +120,98 @@ def test_dac_trung_doc_duoc_file_txt_cung_bo_cot():
     assert list(X_mo_phong.columns) == list(X.columns)
 
 
+# --- Học kỳ hè và học kỳ đang học (văn bản dựng tay, đúng định dạng trang) -------
+def _ky(nam, ky, mon, tong_ket=None):
+    """Một học kỳ trên trang. mon: [(mã, TC, điểm 10 hoặc None, điểm 4)];
+    tong_ket: (TC đạt, ĐTB HK, ĐRL hoặc "", TCTL, TC ĐK, ĐTB TL) hoặc None (trống)."""
+    dong = [f"Năm học:{nam}-{nam + 1}", f"Học kỳ: HK0{ky}"]
+    for stt, (ma, tc, d10, d4) in enumerate(mon, start=1):
+        diem = ("\t\t" if d10 is None else "VT\tVT\tVT" if d10 == "VT"      # VT: vắng thi
+                else f"{d10}\t{d4}\tB")
+        dong.append(f"{stt}\t{ma}\tMôn {ma}\t{tc}\t{diem}\t\t\t")
+    tk = tong_ket or ("", "", "", "", "", "")
+    dong += [f"- Số TC đạt học kỳ: {tk[0]}", f"- Điểm TB học kỳ (hệ 4): {tk[1]}",
+             f"- Điểm rèn luyện: {tk[2]}", f"- Tổng số TC tích lũy/ Số TC đăng ký: "
+             + (f"{tk[3]}/{tk[4]}" if tong_ket else ""),
+             f"- Điểm TB tích lũy toàn khóa (hệ 4): {tk[5]}"]
+    return dong
+
+
+def _van_ban(*cac_ky):
+    return "\n".join(["Chương trình đào tạo", "CQ23CT-PM"] + sum(cac_ky, []))
+
+
+VAN_BAN_HE = _van_ban(
+    _ky(2023, 1, [("A1", 4, 7.0, 3.0), ("A2", 4, 7.0, 3.0)], (8, 3.00, 64, 8, 8, 3.00)),
+    _ky(2023, 2, [("B1", 4, 5.0, 1.0), ("B2", 4, 3.0, 0.0), ("B3", 4, "VT", None)],
+        (4, 0.33, 58, 12, 20, 2.33)),                       # trường tính VT là 0: 4/12
+    _ky(2023, 3, [("B2", 4, 6.0, 2.0)], (4, 2.00, "", 16, 20, 2.25)),     # hè học lại B2
+    _ky(2024, 1, [("C1", 3, 8.5, 4.0), ("C2", 3, 7.0, 3.0)], (6, 3.50, 80, 22, 26, 2.59)),
+    # HK2 2024–2025 đang học: 1 môn đã có điểm nên trang có tổng kết dở dang
+    _ky(2024, 2, [("D1", 3, 6.5, 2.0), ("D2", 3, None, None), ("D3", 2, None, None)],
+        (3, 2.00, "", 25, 29, 2.52)),
+    _ky(2025, 1, [("E1", 5, None, None)]),                                 # mới đăng ký học phần
+)
+
+
+def test_hoc_ky_he_gop_vao_ky_chinh_truoc():
+    _, hk, _ = cong.doc_van_ban(VAN_BAN_HE)
+    assert len(hk) == 3                                       # HK1, HK2 (gộp hè), HK1 năm sau
+    hk2 = hk.iloc[1]
+    assert hk2["tc_dat_hk"] == 8                              # 4 + 4 TC đạt hè
+    assert hk2["dtb_hk"] == round((0.33 * 12 + 2.0 * 4) / 16, 2)  # theo TC có kết quả, kể cả VT
+    assert (hk2["tctl"], hk2["tc_dang_ky"], hk2["dtb_tl"]) == (16, 20, 2.25)   # số sau hè
+    assert hk2["drl"] == 58                                   # ĐRL của kỳ chính
+    ten = cong.ten_hoc_ky(VAN_BAN_HE)
+    assert ten[2] == "HK2 2023–2024 (gộp học kỳ hè)" and ten[3] == "HK1 2024–2025"
+
+
+def test_ky_dang_hoc_la_ky_dau_sau_ky_cuoi_du_diem():
+    _, hk, mon = cong.doc_van_ban(VAN_BAN_HE)
+    assert hk["tctl"].iloc[-1] == 22                          # bỏ tổng kết dở dang của kỳ đang học
+    assert list(mon["ten_mon"]) == ["Môn D2", "Môn D3"]       # chỉ môn chưa có điểm, bỏ kỳ mới đăng ký
+    assert (mon["hoc_ky"] == 4).all()
+    nam_ky = cong.nam_ky_hoc_ky(VAN_BAN_HE)
+    assert nam_ky[4] == (2024, 2) and nam_ky[5] == (2025, 1)
+
+
+def test_ky_cu_sot_diem_khong_bi_coi_la_dang_hoc():
+    van_ban = _van_ban(
+        _ky(2023, 1, [("A1", 4, 7.0, 3.0), ("A2", 3, None, None)], (4, 3.00, 70, 4, 4, 3.00)),
+        _ky(2023, 2, [("B1", 4, 7.0, 3.0)], (4, 3.00, 75, 8, 8, 3.00)),
+        _ky(2024, 1, [("C1", 3, None, None)]),
+    )
+    _, hk, mon = cong.doc_van_ban(van_ban)
+    assert len(hk) == 2 and list(mon["ten_mon"]) == ["Môn C1"]
+
+
+def _mo_chi_tiet(van_ban, ma, diem_gk=""):
+    """Thêm khối "Chi tiết học phần" sau dòng môn `ma` (như khi đã bấm mũi tên)."""
+    dong = van_ban.split("\n")
+    i = next(i for i, d in enumerate(dong) if f"\t{ma}\t" in d)
+    dong[i + 1:i + 1] = [f"Chi tiết học phần: {ma} - Môn {ma}",
+                         "STT\tTên thành phần\tTrọng số\tĐiểm lần 1\tĐiểm lần 2\tĐiểm lần 3",
+                         f"1\tĐiểm Thi giữa học phần\t50%\t{diem_gk}\t\t",
+                         "2\tĐiểm thi lý thuyết\t50%\t\t\t"]
+    return "\n".join(dong)
+
+
+def test_canh_bao_khong_doi_drl_hoc_ky_he_va_ky_dang_hoc():
+    assert not any("rèn luyện" in c for c in cong.canh_bao_du_lieu(VAN_BAN_HE))
+
+
+def test_ky_dang_hoc_chua_mo_chi_tiet_thi_bao_ten_mon():
+    canh_bao = cong.canh_bao_du_lieu(VAN_BAN_HE)
+    assert len(canh_bao) == 1 and "Chưa mở Chi tiết 2 môn của HK2 2024–2025" in canh_bao[0]
+    assert "Môn D2, Môn D3" in canh_bao[0]
+    # đã mở cả hai (một môn chưa có điểm giữa kỳ vẫn tính là đã mở): hết cảnh báo, lấy được GK
+    da_mo = _mo_chi_tiet(_mo_chi_tiet(VAN_BAN_HE, "D2", "8.0"), "D3")
+    assert cong.canh_bao_du_lieu(da_mo) == []
+    _, _, mon = cong.doc_van_ban(da_mo)
+    assert mon["diem_gk"].iloc[0] == 8.0 and mon["ti_trong_gk"].iloc[0] == 0.5
+    assert np.isnan(mon["diem_gk"].iloc[1])
+
+
 if __name__ == "__main__":
     cac_test = [(ten, ham) for ten, ham in globals().items() if ten.startswith("test_")]
     loi = 0
